@@ -23,7 +23,7 @@
 html,body{height:100%}
 body{background:var(--bg);color:var(--ink);font-family:var(--body);margin:0;overflow:hidden;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));box-sizing:border-box}
-.app{height:100%;display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto 1fr auto;gap:10px;padding-block:10px;box-sizing:border-box}
+.app{height:100%;display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto 1fr auto;gap:10px;padding-block:10px;box-sizing:border-box}
 header{grid-column:1/-1;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 h1{font-family:var(--display);font-size:1.15rem;margin:0;letter-spacing:.01em}
 h1 small{font-family:var(--body);font-weight:400;color:var(--muted);font-size:.8rem;margin-left:6px}
@@ -51,6 +51,11 @@ select,.nota,.campo input,.campo textarea{font:inherit;color:var(--ink);backgrou
 .aviso{position:absolute;left:8px;top:8px;max-width:calc(100% - 16px);background:var(--panel);color:var(--ink);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:8px;padding:6px 10px;font-size:.82rem;line-height:1.35}
 .aviso.mal{border-left-color:var(--danger)}
 .obj{display:block;font-size:.78rem;color:var(--ink)}
+.voz{grid-column:1/-1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px}
+.voz #vozTexto{flex:1 1 260px}
+.voz #vozEco{flex:1 1 100%;font-size:.82rem}
+#bHablar.oyendo{background:var(--danger);border-color:var(--danger)}
+body.presenta .voz,body.visor .voz{display:none!important}
 .parte{border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:6px}
 .parte .fila2{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .parte .fila2>select,.parte .fila2>input[type=text]{flex:1 1 200px;min-width:0}
@@ -86,7 +91,7 @@ svg#pista{width:100%;height:100%;touch-action:none;user-select:none;-webkit-user
 .chip{font-size:.7rem;background:var(--sel);border-radius:99px;padding:2px 8px;margin-left:6px;color:var(--ink)}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-weight:700;z-index:30}
 @media (max-width:760px), (orientation:portrait){
-  .app{grid-template-columns:1fr;grid-template-rows:auto auto 1fr auto}
+  .app{grid-template-columns:1fr;grid-template-rows:auto auto auto 1fr auto}
   .tools{flex-direction:row;flex-wrap:wrap}
   .tools .grupo{display:none}
   .grpvoley{flex-direction:row;flex-wrap:wrap}
@@ -132,6 +137,12 @@ body.visor #nombre{border:0;background:transparent;pointer-events:none}
     <button id="bGuardar" class="prim">Guardar</button>
   </header>
 
+  <div class="voz" id="barraVoz">
+    <button id="bHablar" class="prim" title="Dicta la jugada: «el 1 conduce hacia el centro y pasa al 2»">🎙️ Hablar</button>
+    <input id="vozTexto" class="nota" aria-label="Jugada dicha o escrita" placeholder="Di o escribe: «el 1 conduce hacia el centro y pasa al 2»">
+    <button id="bVozHacer">Hacer</button>
+    <span class="hint" id="vozEco"></span>
+  </div>
   <nav class="tools" aria-label="Herramientas">
     <div class="grupo">Mover</div>
     <button data-tool="mover" class="on"><svg class="ico" viewBox="0 0 26 18"><circle cx="13" cy="9" r="6" fill="#007937" stroke="#fff" stroke-width="1.5"/></svg>Mover fichas</button>
@@ -709,10 +720,10 @@ $("#bAnt").onclick=()=>{if(!jugando&&actual>0)pintaPaso(actual-1)};
 $("#bSig").onclick=()=>{if(jugando||actual>=J.pasos.length-1)return;animaTramo(actual,()=>pintaPaso(actual+1))};
 $("#bFantasma").onclick=()=>{fantasma=!fantasma;$("#bFantasma").classList.toggle("on",fantasma);pintaFantasma()};
 // Crea el paso siguiente aplicando las flechas del paso actual.
-$("#bAuto").onclick=()=>{
-  if(jugando)return;const A=J.pasos[actual],k=dep().k,D=(p,q)=>Math.hypot(p[0]-q[0],p[1]-q[1]);
+function pasoConFlechas(silencio){
+  if(jugando)return 0;const A=J.pasos[actual],k=dep().k,D=(p,q)=>Math.hypot(p[0]-q[0],p[1]-q[1]);
   const mov=A.trazos.filter(t=>t.k==="desmarque"||t.k==="conduccion"),pases=A.trazos.filter(t=>t.k==="pase");
-  if(!mov.length&&!pases.length){toast("Dibuja antes las flechas de este paso");return}
+  if(!mov.length&&!pases.length){if(!silencio)toast("Dibuja antes las flechas de este paso");return 0}
   guardaHist();const pos=JSON.parse(JSON.stringify(A.pos)),usados=new Set();let movidos=0;
   for(const t of mov){let mejor=null,dm=2.2*k;
     for(const id in A.pos){if(id==="ball"||usados.has(id))continue;const f=J.fichas.find(x=>x.id===id);if(!f||!["a","b","x","lib"].includes(f.t))continue;
@@ -722,7 +733,119 @@ $("#bAuto").onclick=()=>{
   let pase=null;if(A.pos.ball)pase=pases.slice().sort((x,y)=>D(x.a,A.pos.ball)-D(y.a,A.pos.ball))[0];
   if(pase&&D(pase.a,A.pos.ball)<3*k){pos.ball=pase.b.slice();movidos++}
   J.pasos.splice(actual+1,0,{pos,trazos:JSON.parse(JSON.stringify(A.trazos.filter(t=>t.k==="union"))),nota:""});actual++;todo();
-  toast(movidos?`Paso ${actual+1} creado: ${movidos} movimiento(s). Dibuja lo que pasa después`:"No he encontrado a quién mover: revisa que las flechas salgan de los jugadores");
+  if(!silencio)toast(movidos?`Paso ${actual+1} creado: ${movidos} movimiento(s). Dibuja lo que pasa después`:"No he encontrado a quién mover: revisa que las flechas salgan de los jugadores");
+  return movidos;
+}
+$("#bAuto").onclick=()=>pasoConFlechas();
+
+// =================== JUGADA DICTADA (voz o texto) ===================
+// Entiende frases como «el 1 conduce hacia el centro y pasa al 2», «el rival 3 presiona al 1», «el 4 se desmarca a la banda derecha y tira».
+// Cada acción crea su paso. Kolbe ataca hacia la derecha; «banda izquierda» es la izquierda de quien ataca (arriba en la pista).
+const NUM={uno:1,un:1,dos:2,tres:3,cuatro:4,cinco:5,seis:6,siete:7,ocho:8,nueve:9,diez:10,once:11,doce:12};
+const VERBOS=[
+  ["tiro",/\b(tira|chuta|dispara|remata|finaliza)\b/],
+  ["pase",/\b(saca|saque|pasa|pase|la pasa|le da|se la da|da el pase|centra|cede|devuelve)\b/],
+  ["conduccion",/\b(conduce|conduccion|avanza con (el )?balon|sale con (el )?balon|lleva el balon|regatea)\b/],
+  ["presion",/\b(presiona|marca|sale a|aprieta|tapa)\b/],
+  ["desmarque",/\b(se desmarca|desmarque|corre|va|sube|baja|retrocede|repliega|vuelve|se abre|abre|entra|cae|se mueve|se va|apoya|se ofrece|ataca|rompe|se coloca|se pone)\b/]];
+const sinTilde=t=>t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+function numero(t){const m=t.match(/\b(\d{1,2}|uno|un|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce)\b/);return m?(+m[1]||NUM[m[1]]):null}
+function fichaDe(rival,n,portero){
+  const t=rival?"b":"a";
+  if(portero){const f=J.fichas.find(x=>x.t===t&&x.l==="1");return f&&f.id}
+  const f=J.fichas.find(x=>x.t===t&&x.l===String(n));return f&&f.id}
+function destino(txt,desde,rival){
+  const D=dep(),W=D.W,H=D.H,k=D.k,P=J.pasos[actual].pos,ataca=rival?0:W,sx=rival?-1:1;
+  const ar=J.deporte==="f7"?12:J.deporte==="voley"?3:6,pal=J.deporte==="f7"?3:1.5,pen=J.deporte==="f7"?9:6;
+  const lado=(P.ball?P.ball[1]:desde[1])<H/2?-1:1;
+  const t=txt;let d=null;
+  const otro=t.match(/\b(?:al|a|hacia el|hacia|donde (?:esta )?el|la posicion del)\s+(rival\s+)?(\d{1,2}|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|portero)\b/);
+  if(/segundo palo/.test(t))d=[ataca-sx*0.8*k,H/2-lado*pal];
+  else if(/primer palo/.test(t))d=[ataca-sx*0.8*k,H/2+lado*pal];
+  else if(/porteria|gol\b|arco/.test(t))d=[ataca,H/2];
+  else if(/penalti/.test(t))d=[ataca-sx*pen,H/2];
+  else if(/(nuestra|propia) area|area propia/.test(t))d=[W-ataca+sx*ar*0.6,H/2];
+  else if(/\barea\b/.test(t))d=[ataca-sx*ar*0.6,H/2];
+  else if(/corner|esquina/.test(t))d=[ataca-sx*0.6*k,lado<0?0.6*k:H-0.6*k];
+  else if(/banda izquierda|por la izquierda|a la izquierda/.test(t))d=[desde[0]+sx*2*k,sx>0?1.2*k:H-1.2*k];
+  else if(/banda derecha|por la derecha|a la derecha/.test(t))d=[desde[0]+sx*2*k,sx>0?H-1.2*k:1.2*k];
+  else if(/\bbanda\b/.test(t))d=[desde[0]+sx*2*k,desde[1]<H/2?1.2*k:H-1.2*k];
+  else if(/medio campo|mitad de la pista|mediocampo/.test(t))d=[W/2,desde[1]];
+  else if(/\bcentro\b|\bmedio\b/.test(t))d=[W/2+sx*1.5*k,H/2];
+  else if(/espacio|hueco|al frente|adelante|delante|arriba/.test(t))d=[desde[0]+sx*6*k,desde[1]];
+  else if(/atras|retrocede|repliega/.test(t))d=[desde[0]-sx*6*k,desde[1]];
+  else if(otro){const id=fichaDe(otro[1]?!rival:rival,otro[2]==="portero"?1:(+otro[2]||NUM[otro[2]]),otro[2]==="portero");if(id&&P[id])d=P[id].slice()}
+  if(!d)return null;
+  return [Math.max(0.5,Math.min(W-0.5,+d[0].toFixed(2))),Math.max(0.5,Math.min(H-0.5,+d[1].toFixed(2)))];
+}
+function interpreta(frase){
+  const trozos=sinTilde(frase).replace(/[¡!¿?]/g," ").split(/\s*(?:,|\.|;|\by luego\b|\bluego\b|\bdespues\b|\bentonces\b|\bque\b|\by\b)\s*/).map(x=>x.trim()).filter(Boolean);
+  const acc=[],nada=[];let sujeto=null,anterior=null;
+  for(const t of trozos){
+    // el verbo que aparece primero en la frase
+    const vs=VERBOS.map(([v,re])=>[v,t.search(re)]).filter(x=>x[1]>=0).sort((a,b)=>a[1]-b[1]);
+    if(!vs.length){nada.push(t);continue}
+    const verbo=vs[0][0],iv=vs[0][1],antes=t.slice(0,iv),despues=t.slice(iv);
+    const rivalS=/\b(rival|contrario|defensor)\b/.test(antes),portS=/\bportero\b/.test(antes),nS=numero(antes);
+    if(nS||portS){const id=fichaDe(rivalS,nS,portS&&!nS);if(id){if(sujeto&&sujeto!==id)anterior=sujeto;sujeto=id}}
+    if(!sujeto){nada.push(t);continue}
+    const P=J.pasos[actual].pos;
+    if(verbo==="pase"||verbo==="tiro"){
+      let dest=verbo==="tiro"?destino(/palo/.test(despues)?despues:"porteria",P[sujeto],sujeto[0]==="b"):destino(despues,P[sujeto],sujeto[0]==="b");
+      let receptor=null;const m=despues.match(/\b(?:al|a|para el|para)\s+(rival\s+)?(\d{1,2}|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|portero)\b/);
+      if(m)receptor=fichaDe(m[1]?sujeto[0]==="a":sujeto[0]==="b",m[2]==="portero"?1:(+m[2]||NUM[m[2]]),m[2]==="portero");
+      if(!receptor&&!dest&&/\ble\b|se la/.test(t)&&anterior)receptor=anterior;
+      if(receptor&&P[receptor])dest=P[receptor].slice();
+      if(!dest){nada.push(t);continue}
+      acc.push({tipo:verbo,quien:sujeto,dest,receptor});if(receptor){anterior=sujeto;sujeto=receptor}
+    }else{
+      let dest=destino(despues,P[sujeto],sujeto[0]==="b");
+      if(verbo==="presion"){const m=despues.match(/\b(?:al|a)\s+(rival\s+)?(\d{1,2}|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|portero)\b/);
+        if(m){const obj=fichaDe(sujeto[0]==="a",m[2]==="portero"?1:(+m[2]||NUM[m[2]]),m[2]==="portero");if(obj&&P[obj]){const a=P[sujeto],b=P[obj],L=Math.hypot(b[0]-a[0],b[1]-a[1])||1,r=1.3*dep().k;dest=[b[0]-(b[0]-a[0])/L*r,b[1]-(b[1]-a[1])/L*r]}}}
+      if(!dest&&verbo!=="presion")dest=destino(/\b(baja|retrocede|repliega|vuelve)\b|atras/.test(despues)?"atras":"adelante",P[sujeto],sujeto[0]==="b"); // «sube», «corre»… sin destino: hacia delante
+      if(!dest){nada.push(t);continue}
+      acc.push({tipo:verbo==="conduccion"?"conduccion":"desmarque",quien:sujeto,dest,presiona:verbo==="presion"});
+    }
+  }
+  return {acc,nada};
+}
+function ejecutaDictado(frase){
+  if(!frase.trim()||jugando)return;
+  const {acc,nada}=interpreta(frase);
+  if(!acc.length){$("#vozEco").textContent="No lo he entendido. Prueba así: «el 1 conduce hacia el centro y pasa al 2».";return}
+  const eti=id=>{const f=J.fichas.find(x=>x.id===id);return (id[0]==="b"?"rival ":"")+(f?f.l:"?")};
+  const hechos=[];
+  for(const a of acc){
+    const P=J.pasos[actual],pos=P.pos,k=dep().k;
+    if(!pos[a.quien])continue;
+    if(a.tipo==="conduccion"&&pos.ball&&Math.hypot(pos.ball[0]-pos[a.quien][0],pos.ball[1]-pos[a.quien][1])>1.5*k){guardaHist();pos.ball=[pos[a.quien][0]+0.6*k,pos[a.quien][1]]}
+    let t;
+    if(a.tipo==="pase"||a.tipo==="tiro"){const desde=pos.ball||pos[a.quien];
+      if(pos.ball&&Math.hypot(pos.ball[0]-pos[a.quien][0],pos.ball[1]-pos[a.quien][1])>2.5*k){pos.ball=[pos[a.quien][0]+0.6*k,pos[a.quien][1]]}
+      const fin=a.receptor&&pos[a.receptor]?pos[a.receptor].slice():a.dest;  // el receptor, donde esté AHORA
+      t={k:"pase",a:(pos.ball||desde).slice(),b:fin}}
+    else t={k:a.tipo,a:pos[a.quien].slice(),b:a.dest};
+    guardaHist();P.trazos.push(t);
+    P.nota=(P.nota?P.nota+" · ":"")+({pase:`pase del ${eti(a.quien)}${a.receptor?" al "+eti(a.receptor):""}`,tiro:`tira el ${eti(a.quien)}`,conduccion:`conduce el ${eti(a.quien)}`,desmarque:a.presiona?`presiona el ${eti(a.quien)}`:`se mueve el ${eti(a.quien)}`}[a.tipo]);
+    pasoConFlechas(true);hechos.push(P.nota.split(" · ").pop());
+  }
+  todo();
+  $("#vozEco").textContent=`✅ ${hechos.length} paso(s): ${hechos.join(" → ")}`+(nada.length?` · ⚠️ No entendí: «${nada.join("», «")}»`:"")+". ▶ Reproducir para verlo; ↶ Deshacer si algo no va.";
+  $("#vozTexto").value="";
+}
+$("#bVozHacer").onclick=()=>ejecutaDictado($("#vozTexto").value);
+$("#vozTexto").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();ejecutaDictado($("#vozTexto").value)}});
+const Reconoce=window.SpeechRecognition||window.webkitSpeechRecognition;let oyendo=null;
+$("#bHablar").onclick=()=>{
+  if(oyendo){oyendo.stop();return}
+  if(!Reconoce){$("#vozTexto").focus();$("#vozEco").textContent="Este navegador no deja dictar desde aquí: pulsa el micrófono del teclado de la tablet y dicta en la casilla; luego «Hacer».";return}
+  let r;try{r=new Reconoce()}catch(e){$("#vozTexto").focus();$("#vozEco").textContent="No puedo usar el micrófono aquí: dicta con el micrófono del teclado y pulsa «Hacer».";return}
+  r.lang="es-ES";r.interimResults=true;r.continuous=false;oyendo=r;$("#bHablar").classList.add("oyendo");$("#bHablar").textContent="⏹ Parar";$("#vozEco").textContent="Te escucho…";
+  let final="";
+  r.onresult=e=>{let txt="";for(let i=0;i<e.results.length;i++){txt+=e.results[i][0].transcript;if(e.results[i].isFinal)final=txt}$("#vozTexto").value=txt};
+  r.onerror=e=>{$("#vozEco").textContent=e.error==="not-allowed"?"No hay permiso para el micrófono. Puedes dictar con el micrófono del teclado y pulsar «Hacer».":"No te he oído bien. Vuelve a probar."};
+  r.onend=()=>{oyendo=null;$("#bHablar").classList.remove("oyendo");$("#bHablar").textContent="🎙️ Hablar";const t=(final||$("#vozTexto").value).trim();if(t)ejecutaDictado(t)};
+  try{r.start()}catch(e){oyendo=null;$("#bHablar").classList.remove("oyendo");$("#bHablar").textContent="🎙️ Hablar"}
 };
 $("#bMedia").onclick=()=>{if(jugando)return;guardaHist();const V=vista();V.media={"":"der",der:"izq",izq:""}[V.media||""];todo()};
 $("#bGirar").onclick=()=>{if(jugando)return;guardaHist();const V=vista();V.girar=!V.girar;todo()};
