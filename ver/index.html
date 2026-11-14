@@ -244,6 +244,9 @@ body.visor #nombre{border:0;background:transparent;pointer-events:none}
     <div id="bibLista" style="display:flex;flex-direction:column;gap:8px"></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button id="bNueva">＋ Jugada en blanco</button>
+      <button id="bCopiaSeg" class="soloweb" hidden title="Guarda en un archivo todas tus jugadas y sesiones de esta tablet">💾 Copia de seguridad</button>
+      <button id="bRecuperar" class="soloweb" hidden title="Recupera jugadas y sesiones desde una copia">📥 Recuperar copia</button>
+      <input id="fichCopia" type="file" accept=".json,application/json" hidden aria-label="Archivo de copia de seguridad">
       <span class="sp"></span>
       <button id="bCerrar" class="prim">Cerrar</button>
     </div>
@@ -1095,6 +1098,30 @@ $("#eEnlace").onclick=async()=>{try{
   try{if(navigator.share){await navigator.share({title:J.nombre||"Jugada",text:(J.nombre||"Jugada")+" · Club Deportivo Kolbe",url});$("#eEstado").textContent="Compartido";return}}catch(e){if(e&&e.name==="AbortError")return}
   await navigator.clipboard.writeText(url);$("#eEstado").textContent="Enlace copiado: pégalo en el grupo del equipo."}
   catch(e){$("#eEstado").textContent="No se ha podido preparar el enlace en este navegador."}};
+// Copia de seguridad: todas las jugadas y sesiones de esta tablet en un archivo, para guardarlo o pasarlo a otra tablet.
+$("#bCopiaSeg").onclick=async()=>{
+  const j=leer(),se=leerS();if(!j.length&&!se.length){toast("Todavía no hay nada guardado en esta tablet");return}
+  const hoy=new Date(),f=hoy.toISOString().slice(0,10);
+  const datos={tipo:"pizarra-kolbe-copia",version:1,fecha:hoy.toISOString(),jugadas:j,sesiones:se};
+  const blob=new Blob([JSON.stringify(datos)],{type:"application/json"});
+  const r=await entregar(blob,`Jugadas_Kolbe_${f}.json`,"Copia de seguridad de la pizarra");
+  toast(r==="Cancelado"?"Copia cancelada":`Copia hecha: ${j.length} jugada(s) y ${se.length} sesión(es). Guárdala en Archivos o en el Drive`);
+};
+$("#bRecuperar").onclick=()=>{$("#fichCopia").value="";$("#fichCopia").click()};
+$("#fichCopia").onchange=async e=>{
+  const f=e.target.files&&e.target.files[0];if(!f)return;
+  try{
+    const d=JSON.parse(await f.text());if(d.tipo!=="pizarra-kolbe-copia"||!Array.isArray(d.jugadas))throw new Error("no es una copia");
+    const l=leer(),ids=new Set(l.map(x=>x.id));let nj=0,yaj=0;
+    for(const x of d.jugadas){if(!x||!x.pasos)continue;if(ids.has(x.id)){yaj++;continue}l.push(x);ids.add(x.id);nj++}
+    const s=leerS(),ids2=new Set(s.map(x=>x.id));let ns=0;
+    for(const x of (d.sesiones||[])){if(!x||!x.id||ids2.has(x.id))continue;s.push(x);ids2.add(x.id);ns++}
+    const ok=escribir(l)&&escribirS(s);
+    toast(ok?`Recuperadas ${nj} jugada(s) y ${ns} sesión(es)${yaj?` · ${yaj} ya estaban`:""}`:"No se ha podido guardar en este navegador");
+    abrirBiblio();
+  }catch(err){toast("Ese archivo no es una copia de la pizarra")}
+};
+
 // Visor público
 if(VISOR){document.body.classList.add("visor");
   (async()=>{const h=location.hash.slice(1);
