@@ -163,6 +163,7 @@ body.visor #nombre{border:0;background:transparent;pointer-events:none}
     <button data-tool="unir"><svg class="ico" viewBox="0 0 26 18"><circle cx="5" cy="9" r="3.5" fill="currentColor"/><circle cx="21" cy="9" r="3.5" fill="currentColor"/><line x1="8" y1="9" x2="18" y2="9" stroke="currentColor" stroke-width="2" stroke-dasharray="2.5 2"/></svg>Unir jugadores</button>
     <button data-tool="dorsal"><svg class="ico" viewBox="0 0 26 18"><circle cx="13" cy="9" r="7" fill="#007937" stroke="#fff" stroke-width="1.5"/><text x="13" y="12.5" text-anchor="middle" font-size="9" fill="#fff" font-weight="700">7</text></svg>Cambiar dorsal</button>
     <button data-tool="grupo"><svg class="ico" viewBox="0 0 26 18"><rect x="2" y="2" width="22" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="3 2"/><circle cx="9" cy="9" r="3" fill="currentColor"/><circle cx="17" cy="9" r="3" fill="currentColor"/></svg>Mover varios</button>
+    <button data-tool="tiro"><svg class="ico" viewBox="0 0 26 18"><line x1="2" y1="9" x2="19" y2="9" stroke="#ff5a4f" stroke-width="3"/><path d="M18 3 L25 9 L18 15Z" fill="#ff5a4f"/></svg>Tiro</button>
     <button data-tool="borrar"><svg class="ico" viewBox="0 0 26 18"><path d="M5 4 L21 14 M21 4 L5 14" stroke="currentColor" stroke-width="2.2"/></svg>Borrar</button>
     <div class="grupo">Vista</div>
     <button id="bMedia">Pista: entera</button>
@@ -191,12 +192,14 @@ body.visor #nombre{border:0;background:transparent;pointer-events:none}
     <button id="bRehacer">↷ Rehacer</button>
     <button id="bFantasma" class="on" title="Ver en tenue dónde estaban en el paso anterior">👻 Paso anterior</button>
     <button id="bLimpiar">Borrar dibujos</button>
+    <button id="bOrden" title="Pone 1, 2, 3… en las flechas, en el orden en que se dibujaron">🔢 Orden en flechas</button>
   </nav>
 
   <div class="stage">
     <svg id="pista" viewBox="-2.2 -1.6 44.4 23.2" role="img" aria-label="Pista de fútbol sala de 40 por 20 metros">
       <defs>
         <marker id="punta" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4.2" markerHeight="4.2" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10Z" fill="#fff"/></marker>
+        <marker id="puntaRoja" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="3.6" markerHeight="3.6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10Z" fill="#ff5a4f"/></marker>
         <marker id="puntaOro" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4.2" markerHeight="4.2" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10Z" fill="#ffd36a"/></marker>
       </defs>
       <g id="mundo">
@@ -219,6 +222,7 @@ body.visor #nombre{border:0;background:transparent;pointer-events:none}
     <button id="bSig" aria-label="Paso siguiente">▶</button>
     <button id="bNuevo">＋ Paso</button>
     <button id="bAuto" title="Crea el paso siguiente moviendo cada jugador al final de su flecha y el balón al final del pase">⤳ Paso con flechas</button>
+    <button id="bDupPaso" title="Copia este paso tal cual, con sus flechas">⧉ Duplicar paso</button>
     <button id="bQuitarPaso">Quitar paso</button>
     <input id="notaPaso" class="nota" aria-label="Nota de este paso" placeholder="Nota de este paso (opcional)">
     <span class="sp"></span>
@@ -233,7 +237,7 @@ body.visor #nombre{border:0;background:transparent;pointer-events:none}
 <div id="velo" class="velo" hidden>
   <div class="caja" role="dialog" aria-modal="true" aria-labelledby="tBib">
     <h2 id="tBib">Mis jugadas</h2>
-    <span class="hint">Se guardan solo en esta tablet. Sin nombres de jugadores: solo dorsales.</span>
+    <span class="hint">«Guardar» las deja <b>solo en esta tablet</b>. Para que una jugada la vea <b>todo el club</b>: ábrela → «📝 Ficha» → «📤 Proponer al club» y se la mandas a David. Sin nombres de jugadores: solo dorsales.</span>
     <div class="filtros">
       <select id="fDep" aria-label="Filtrar por deporte"><option value="">Todos los deportes</option><option value="fs">Fútbol sala</option><option value="f7">Fútbol 7</option><option value="voley">Voleibol</option></select>
       <select id="fCat" aria-label="Filtrar por categoría"></select>
@@ -241,9 +245,14 @@ body.visor #nombre{border:0;background:transparent;pointer-events:none}
       <select id="fJug" aria-label="Filtrar por número de jugadores"></select>
       <input id="fBuscar" class="nota" aria-label="Buscar" placeholder="Buscar por nombre, objetivo o material">
     </div>
+    <div id="pegarCaja" hidden style="display:flex;flex-direction:column;gap:6px">
+      <textarea id="pegarTxt" rows="3" aria-label="Texto de la jugada recibida" placeholder="Pega aquí el texto que empieza por PIZARRA-KOLBE:"></textarea>
+      <div style="display:flex;gap:8px"><button id="pegarAbrir" class="prim">Abrir esta jugada</button><button id="pegarCancelar">Cancelar</button></div>
+    </div>
     <div id="bibLista" style="display:flex;flex-direction:column;gap:8px"></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button id="bNueva">＋ Jugada en blanco</button>
+      <button id="bPegar" title="Abre una jugada que te han mandado como texto (PIZARRA-KOLBE:…)">📋 Pegar jugada</button>
       <button id="bCopiaSeg" class="soloweb" hidden title="Guarda en un archivo todas tus jugadas y sesiones de esta tablet">💾 Copia de seguridad</button>
       <button id="bRecuperar" class="soloweb" hidden title="Recupera jugadas y sesiones desde una copia">📥 Recuperar copia</button>
       <input id="fichCopia" type="file" accept=".json,application/json" hidden aria-label="Archivo de copia de seguridad">
@@ -514,11 +523,13 @@ function trazoEl(t,i){
   if(t.pts&&t.pts.length>2){ // flecha curva (las de Gonzalo)
     const d="M"+t.pts.map(q=>q[0]+" "+q[1]).join(" L");
     p=t.k==="pase"?el("path",{...comun,d,stroke:"#ffd36a","stroke-width":0.16*k,"stroke-dasharray":`${0.55*k} ${0.4*k}`,"marker-end":"url(#puntaOro)"})
+     :t.k==="tiro"?el("path",{...comun,d,stroke:"#ff5a4f","stroke-width":0.26*k,"marker-end":"url(#puntaRoja)"})
      :t.k==="conduccion"?el("path",{...comun,d,stroke:"#fff","stroke-width":0.2*k,"stroke-dasharray":`${0.05*k} ${0.3*k}`,"marker-end":"url(#punta)"})
                  :el("path",{...comun,d,stroke:"#fff","stroke-width":0.16*k,"marker-end":"url(#punta)"});
     g.append(el("path",{d,fill:"none",stroke:"transparent","stroke-width":1.2*k}),p);return g;
   }
   if(t.k==="conduccion") p=el("path",{...comun,d:onda(t.a,t.b),stroke:"#fff","stroke-width":0.16*k,"marker-end":"url(#punta)"});
+  else if(t.k==="tiro") p=el("line",{...comun,x1:t.a[0],y1:t.a[1],x2:t.b[0],y2:t.b[1],stroke:"#ff5a4f","stroke-width":0.26*k,"marker-end":"url(#puntaRoja)"});
   else if(t.k==="pase") p=el("line",{...comun,x1:t.a[0],y1:t.a[1],x2:t.b[0],y2:t.b[1],stroke:"#ffd36a","stroke-width":0.16*k,"stroke-dasharray":`${0.55*k} ${0.4*k}`,"marker-end":"url(#puntaOro)"});
   else p=el("line",{...comun,x1:t.a[0],y1:t.a[1],x2:t.b[0],y2:t.b[1],stroke:"#fff","stroke-width":0.16*k,"marker-end":"url(#punta)"});
   // zona de toque más ancha para poder borrar con el dedo
@@ -560,7 +571,14 @@ function pintaSel(){const g=$("#gSel");g.replaceChildren();const k=dep().k;
   sel.forEach(id=>{const p=J.pasos[actual].pos[id];if(p)g.append(el("circle",{cx:p[0],cy:p[1],r:1.25*k,fill:"none",stroke:"#7fd3ff","stroke-width":0.14*k}))});
   if(marco){const x=Math.min(marco.a[0],marco.b[0]),y=Math.min(marco.a[1],marco.b[1]);g.append(el("rect",{x,y,width:Math.abs(marco.b[0]-marco.a[0]),height:Math.abs(marco.b[1]-marco.a[1]),fill:"#7fd3ff","fill-opacity":0.12,stroke:"#7fd3ff","stroke-width":0.08*k,"stroke-dasharray":`${0.3*k} ${0.2*k}`}))}}
 function pintaFichas(pos){posVista=pos;marcas=marcasVoley();gF.replaceChildren(...J.fichas.filter(f=>pos[f.id]).map(f=>fichaEl(f,pos[f.id])))}
-function pintaTrazos(lst,op){gT.replaceChildren(...lst.map((t,i)=>{const e=trazoEl(t,i);if(op!=null)e.setAttribute("opacity",op);return e}))}
+let numerar=false;
+function pintaTrazos(lst,op){let n=0;const k=dep().k;gT.replaceChildren(...lst.map((t,i)=>{const e=trazoEl(t,i);if(op!=null)e.setAttribute("opacity",op);
+  if(numerar&&["pase","tiro","conduccion","desmarque"].includes(t.k)){n++;
+    const q=t.pts&&t.pts.length>2?t.pts[Math.floor(t.pts.length/2)]:[(t.a[0]+t.b[0])/2,(t.a[1]+t.b[1])/2];
+    const b=el("g",{transform:trf(q),"pointer-events":"none"});b.append(el("circle",{r:0.55*k,fill:"#0f3d24",stroke:"#fff","stroke-width":0.08*k}));
+    const tx=el("text",{"text-anchor":"middle","dominant-baseline":"central",fill:"#fff","font-size":0.7*k,"font-weight":700,"font-family":"Oxygen, system-ui, sans-serif"});tx.textContent=n;b.append(tx);e.append(b)}
+  return e}))}
+$("#bOrden").onclick=()=>{numerar=!numerar;$("#bOrden").classList.toggle("on",numerar);pintaTrazos(J.pasos[actual].trazos)};
 function pintaPasos(){
   const L=$("#lista");L.replaceChildren(...J.pasos.map((_,i)=>{const b=document.createElement("button");b.className="paso"+(i===actual?" on":"");b.textContent=i+1;b.setAttribute("aria-label","Paso "+(i+1));b.onclick=()=>{if(jugando)return;actual=i;todo()};return b}));
   $("#bQuitarPaso").disabled=J.pasos.length<2;
@@ -620,7 +638,7 @@ svg.addEventListener("pointerdown",ev=>{
   if(tool==="libre"){
     const a=punto(ev);dib={k:"libre",pts:[a],c:color};svg.setPointerCapture(ev.pointerId);ev.preventDefault();return;
   }
-  if(tool==="pase"||tool==="conduccion"||tool==="desmarque"||tool==="zona"){
+  if(tool==="pase"||tool==="tiro"||tool==="conduccion"||tool==="desmarque"||tool==="zona"){
     const a=punto(ev);dib={k:tool,a,b:a,pts:[a]};if(tool==="zona")dib.c=color;svg.setPointerCapture(ev.pointerId);ev.preventDefault();
   }
 });
@@ -711,7 +729,7 @@ function recorridos(A,B){
   const k=dep().k,R={},D=(p,q)=>Math.hypot(p[0]-q[0],p[1]-q[1]);
   for(const id in B.pos){
     const a=A.pos[id],b=B.pos[id];if(!a||D(a,b)<0.05)continue;
-    const tipos=id==="ball"?["pase"]:["desmarque","conduccion"];
+    const tipos=id==="ball"?["pase","tiro"]:["desmarque","conduccion"];
     let mejor=null,dm=1e9;
     for(const t of A.trazos){if(!tipos.includes(t.k))continue;const dd=D(t.a,a)+D(t.b,b);if(dd<dm){dm=dd;mejor=t}}
     if(mejor&&dm<4*k)R[id]=[a,...(mejor.pts||[mejor.a,mejor.b]),b];
@@ -735,7 +753,7 @@ $("#bFantasma").onclick=()=>{fantasma=!fantasma;$("#bFantasma").classList.toggle
 // Crea el paso siguiente aplicando las flechas del paso actual.
 function pasoConFlechas(silencio){
   if(jugando)return 0;const A=J.pasos[actual],k=dep().k,D=(p,q)=>Math.hypot(p[0]-q[0],p[1]-q[1]);
-  const mov=A.trazos.filter(t=>t.k==="desmarque"||t.k==="conduccion"),pases=A.trazos.filter(t=>t.k==="pase");
+  const mov=A.trazos.filter(t=>t.k==="desmarque"||t.k==="conduccion"),pases=A.trazos.filter(t=>t.k==="pase"||t.k==="tiro");
   if(!mov.length&&!pases.length){if(!silencio)toast("Dibuja antes las flechas de este paso");return 0}
   guardaHist();const pos=JSON.parse(JSON.stringify(A.pos)),usados=new Set();let movidos=0;
   for(const t of mov){let mejor=null,dm=2.2*k;
@@ -750,6 +768,7 @@ function pasoConFlechas(silencio){
   return movidos;
 }
 $("#bAuto").onclick=()=>pasoConFlechas();
+$("#bDupPaso").onclick=()=>{if(jugando)return;guardaHist();J.pasos.splice(actual+1,0,JSON.parse(JSON.stringify(J.pasos[actual])));actual++;todo();toast(`Paso ${actual+1}: copia del anterior`)};
 
 // =================== JUGADA DICTADA (voz o texto) ===================
 // Entiende frases como «el 1 conduce hacia el centro y pasa al 2», «el rival 3 presiona al 1», «el 4 se desmarca a la banda derecha y tira».
@@ -836,7 +855,7 @@ function ejecutaDictado(frase){
     if(a.tipo==="pase"||a.tipo==="tiro"){const desde=pos.ball||pos[a.quien];
       if(pos.ball&&Math.hypot(pos.ball[0]-pos[a.quien][0],pos.ball[1]-pos[a.quien][1])>2.5*k){pos.ball=[pos[a.quien][0]+0.6*k,pos[a.quien][1]]}
       const fin=a.receptor&&pos[a.receptor]?pos[a.receptor].slice():a.dest;  // el receptor, donde esté AHORA
-      t={k:"pase",a:(pos.ball||desde).slice(),b:fin}}
+      t={k:a.tipo==="tiro"?"tiro":"pase",a:(pos.ball||desde).slice(),b:fin}}
     else t={k:a.tipo,a:pos[a.quien].slice(),b:a.dest};
     guardaHist();P.trazos.push(t);
     P.nota=(P.nota?P.nota+" · ":"")+({pase:`pase del ${eti(a.quien)}${a.receptor?" al "+eti(a.receptor):""}`,tiro:`tira el ${eti(a.quien)}`,conduccion:`conduce el ${eti(a.quien)}`,desmarque:a.presiona?`presiona el ${eti(a.quien)}`:`se mueve el ${eti(a.quien)}`}[a.tipo]);
@@ -941,6 +960,15 @@ function abrirBiblio(primera){
     tit("Jugadas del club"),...(club.length?club:[vacio("No hay jugadas del club con estos filtros.")]));
   $("#velo").hidden=false;
 }
+$("#bPegar").onclick=()=>{$("#pegarCaja").hidden=false;$("#pegarTxt").value="";$("#pegarTxt").focus()};
+$("#pegarCancelar").onclick=()=>{$("#pegarCaja").hidden=true};
+$("#pegarAbrir").onclick=()=>{
+  const t=$("#pegarTxt").value,i=t.indexOf("PIZARRA-KOLBE:");
+  try{if(i<0)throw 0;const j=JSON.parse(t.slice(i+14).trim());if(!j||!Array.isArray(j.pasos)||!j.pasos.length||!Array.isArray(j.fichas))throw 0;
+    guardaHist();delete j.id;delete j.ejemplo;J=j;idActual=null;actual=0;$("#pegarCaja").hidden=true;cerrar();todo();
+    toast(`Abierta «${J.nombre||"Jugada"}». Si te vale, «Guardar» para tenerla en esta tablet`)}
+  catch(e){toast("Ese texto no es una jugada de la pizarra: tiene que empezar por PIZARRA-KOLBE:")}
+};
 ["#fDep","#fCat","#fTipo","#fJug"].forEach(q=>$(q).onchange=()=>abrirBiblio());$("#fBuscar").oninput=()=>abrirBiblio();
 function cerrar(){$("#velo").hidden=true}
 $("#bBiblio").onclick=()=>{abrirBiblio(true);$("#bCerrar").focus()};$("#bCerrar").onclick=cerrar;
@@ -1014,7 +1042,7 @@ $("#bGuardar").onclick=()=>{
   if(!idActual)idActual="j"+Date.now();
   const copia={...JSON.parse(JSON.stringify(J)),id:idActual,fecha:hoy};
   const k=l.findIndex(x=>x.id===idActual);if(k>=0)l[k]=copia;else l.unshift(copia);
-  toast(escribir(l)?"Guardada en esta tablet":"No se ha podido guardar en este navegador");
+  toast(escribir(l)?"Guardada en esta tablet. Para que la vea todo el club: 📝 Ficha → 📤 Proponer al club":"No se ha podido guardar en este navegador");
 };
 
 // =================== SOLO EN LA WEB DEL CLUB (fuera de claude.ai) ===================
