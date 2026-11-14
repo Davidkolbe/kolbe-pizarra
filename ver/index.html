@@ -68,6 +68,7 @@ body.presenta .app{grid-template-columns:1fr;grid-template-rows:1fr auto}
 body.presenta .pasos{grid-column:1}
 .soloPresenta{display:none;gap:6px}
 body.presenta .soloPresenta{display:flex}
+body.presenta,body.presenta .app{touch-action:none;overscroll-behavior:none}
 body.presenta #bAuto,body.presenta #bDupPaso,body.presenta #bVel,body.presenta #crono{display:none!important}
 body.presenta .pasos button{min-height:52px;font-size:1.05rem}
 body.presenta #hint{font-size:1rem;color:var(--ink)}
@@ -917,9 +918,16 @@ $("#bPlay").onclick=()=>{
 // Presentar: solo se sale con «✕ Salir». Si la tablet quita la pantalla completa (deslizar hacia abajo, gesto del
 // sistema), la pizarra sigue en modo presentar y vuelve a pantalla completa al siguiente toque en la pista (14-11-2026).
 const fsEl=()=>document.fullscreenElement||document.webkitFullscreenElement;
-function pideFS(){const d=document.documentElement;try{const r=(d.requestFullscreen||d.webkitRequestFullscreen||(()=>{})).call(d);if(r&&r.catch)r.catch(()=>{})}catch(e){}}
+// En tablet NO se usa la pantalla completa del navegador: el iPad la quita al deslizar hacia abajo y con ella se iba
+// la presentación (David, 14-11-2026). En tablet, «Presentar» es un modo propio que solo quita «✕ Salir»; para no ver
+// las barras del navegador, abrir la pizarra desde el icono de la pantalla de inicio.
+const TACTIL=()=>matchMedia("(pointer:coarse)").matches||navigator.maxTouchPoints>1;
+function pideFS(){if(TACTIL())return;const d=document.documentElement;try{const r=(d.requestFullscreen||d.webkitRequestFullscreen||(()=>{})).call(d);if(r&&r.catch)r.catch(()=>{})}catch(e){}}
 function sueltaFS(){try{if(!fsEl())return;const r=(document.exitFullscreen||document.webkitExitFullscreen).call(document);if(r&&r.catch)r.catch(()=>{})}catch(e){}}
 let volverFS=false;
+// Con «Presentar» puesto, ningún gesto mueve, desplaza ni recarga la página: solo actúa sobre la pista.
+document.addEventListener("touchmove",e=>{if(document.body.classList.contains("presenta"))e.preventDefault()},{passive:false});
+document.addEventListener("gesturestart",e=>{if(document.body.classList.contains("presenta"))e.preventDefault()});
 $("#bPresentar").onclick=()=>{
   const on=document.body.classList.toggle("presenta");
   $("#bPresentar").textContent=on?"✕ Salir":"⛶ Presentar";
