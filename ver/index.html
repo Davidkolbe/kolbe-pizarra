@@ -20,7 +20,7 @@
   --bg:#111814; --panel:#1a241e; --ink:#e6eee8; --muted:#9aaba0; --line:#2c3a31;
   --accent:#2fae68; --accent-ink:#0b130e; --sel:#21372a; --danger:#ff8a80; color-scheme:dark}
 [hidden]{display:none!important}
-html,body{height:100%}
+html,body{height:100%;overscroll-behavior:none}
 body{background:var(--bg);color:var(--ink);font-family:var(--body);margin:0;overflow:hidden;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));box-sizing:border-box}
 .app{height:100%;display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto 1fr auto;gap:10px;padding-block:10px;box-sizing:border-box}
@@ -66,6 +66,9 @@ body.presenta .voz,body.visor .voz{display:none!important}
 body.presenta .tools, body.presenta header, body.presenta #bNuevo, body.presenta #bQuitarPaso, body.presenta #notaPaso{display:none!important}
 body.presenta .app{grid-template-columns:1fr;grid-template-rows:1fr auto}
 body.presenta .pasos{grid-column:1}
+.soloPresenta{display:none;gap:6px}
+body.presenta .soloPresenta{display:flex}
+body.presenta #bAuto,body.presenta #bDupPaso,body.presenta #bVel,body.presenta #crono{display:none!important}
 body.presenta .pasos button{min-height:52px;font-size:1.05rem}
 body.presenta #hint{font-size:1rem;color:var(--ink)}
 .color{min-width:44px;justify-content:center;padding:6px}
@@ -220,6 +223,11 @@ body.visor #nombre{border:0;background:transparent;pointer-events:none}
     <div class="lista" id="lista"></div>
     <button id="bAnt" aria-label="Paso anterior">◀</button>
     <button id="bSig" aria-label="Paso siguiente">▶</button>
+    <span class="soloPresenta" aria-label="Herramientas de presentar">
+      <button data-tool="mover">✋ Mover</button>
+      <button data-tool="libre">✏️ Lápiz</button>
+      <button data-tool="goma">🧽 Goma</button>
+    </span>
     <button id="bNuevo">＋ Paso</button>
     <button id="bAuto" title="Crea el paso siguiente moviendo cada jugador al final de su flecha y el balón al final del pase">⤳ Paso con flechas</button>
     <button id="bDupPaso" title="Copia este paso tal cual, con sus flechas">⧉ Duplicar paso</button>
@@ -906,13 +914,22 @@ $("#bPlay").onclick=()=>{
   }
   sig();
 };
+// Presentar: solo se sale con «✕ Salir». Si la tablet quita la pantalla completa (deslizar hacia abajo, gesto del
+// sistema), la pizarra sigue en modo presentar y vuelve a pantalla completa al siguiente toque en la pista (14-11-2026).
+const fsEl=()=>document.fullscreenElement||document.webkitFullscreenElement;
+function pideFS(){const d=document.documentElement;try{const r=(d.requestFullscreen||d.webkitRequestFullscreen||(()=>{})).call(d);if(r&&r.catch)r.catch(()=>{})}catch(e){}}
+function sueltaFS(){try{if(!fsEl())return;const r=(document.exitFullscreen||document.webkitExitFullscreen).call(document);if(r&&r.catch)r.catch(()=>{})}catch(e){}}
+let volverFS=false;
 $("#bPresentar").onclick=()=>{
   const on=document.body.classList.toggle("presenta");
   $("#bPresentar").textContent=on?"✕ Salir":"⛶ Presentar";
-  try{if(on&&document.documentElement.requestFullscreen)document.documentElement.requestFullscreen().catch(()=>{});
-      else if(!on&&document.fullscreenElement)document.exitFullscreen().catch(()=>{})}catch(e){}
+  volverFS=false;
+  if(on)pideFS();else sueltaFS();
 };
-document.addEventListener("fullscreenchange",()=>{if(!document.fullscreenElement&&document.body.classList.contains("presenta")){document.body.classList.remove("presenta");$("#bPresentar").textContent="⛶ Presentar"}});
+["fullscreenchange","webkitfullscreenchange"].forEach(t=>document.addEventListener(t,()=>{
+  if(!fsEl()&&document.body.classList.contains("presenta"))volverFS=true;
+}));
+svg.addEventListener("pointerup",()=>{if(volverFS&&document.body.classList.contains("presenta")){volverFS=false;pideFS()}});
 
 // ---------- biblioteca ----------
 const CATS=["Todas","Prebenjamín","Benjamín","Alevín","Infantil","Cadete","Juvenil","Sénior"];
