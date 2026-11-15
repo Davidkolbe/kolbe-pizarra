@@ -1,5 +1,5 @@
-// Versión 20261115-2143. Páginas: primero la red (para coger cambios), si no hay conexión, la copia guardada.
-const CACHE="pizarra-kolbe-20261115-2143";
+// Versión 20261115-2148. Páginas: primero la red (para coger cambios), si no hay conexión, la copia guardada.
+const CACHE="pizarra-kolbe-20261115-2148";
 const BASE=["./","./index.html","./ver/","./ver/index.html","./manifest.webmanifest","./icono-180.png","./icono-192.png","./icono-512.png"];
 self.addEventListener("install",e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(BASE)).then(()=>self.skipWaiting()))});
 self.addEventListener("activate",e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
