@@ -231,6 +231,7 @@ body.visor #nombre{border:0;background:transparent;pointer-events:none}
     </span>
     <button id="bNuevo">＋ Paso</button>
     <button id="bAuto" title="Crea el paso siguiente moviendo cada jugador al final de su flecha y el balón al final del pase">⤳ Paso con flechas</button>
+    <button id="bLimpiar2" title="Borra flechas, pases, desmarques, zonas y textos de este paso. Los jugadores se quedan donde están">🧹 Borrar flechas</button>
     <button id="bDupPaso" title="Copia este paso tal cual, con sus flechas">⧉ Duplicar paso</button>
     <button id="bQuitarPaso">Quitar paso</button>
     <input id="notaPaso" class="nota" aria-label="Nota de este paso" placeholder="Nota de este paso (opcional)">
@@ -724,7 +725,11 @@ $("#selSistema").onchange=e=>{const v=e.target.value;e.target.value="";if(!v||ju
   SISTEMAS[J.deporte||"fs"][k].forEach((q,i)=>{const id=(riv?"b":"a")+(i+2);if(P[id])P[id]=riv?[D.W-q[0],D.H-q[1]]:q.slice()});todo();toast((riv?"Rival ":"Kolbe ")+k)};
 $("#notaPaso").oninput=e=>{J.pasos[actual].nota=e.target.value};
 $("#bDeshacer").onclick=deshacer;$("#bRehacer").onclick=rehacer;botonesHist();
-$("#bLimpiar").onclick=()=>{if(!J.pasos[actual].trazos.length)return;guardaHist();J.pasos[actual].trazos=[];todo()};
+// Borra todo lo dibujado en este paso (flechas, pases, zonas, textos); los jugadores y el balón no se tocan.
+// Está en «Editar» y, desde el 16-11-2026, también en la barra de pasos (David: en la tablet no se encontraba).
+function borrarDibujos(){if(jugando)return;const P=J.pasos[actual];if(!P.trazos.length){toast("En este paso no hay nada dibujado");return}
+  guardaHist();const n=P.trazos.length;P.trazos=[];todo();toast(`Borrado lo dibujado en el paso ${actual+1} (${n}). Si te equivocas, ↶ Deshacer`)}
+$("#bLimpiar").onclick=borrarDibujos;$("#bLimpiar2").onclick=borrarDibujos;
 $("#bNuevo").onclick=()=>{if(jugando)return;guardaHist();const base=J.pasos[actual];J.pasos.splice(actual+1,0,{pos:JSON.parse(JSON.stringify(base.pos)),trazos:JSON.parse(JSON.stringify(base.trazos.filter(t=>t.k==="union")))});actual++;todo()};
 $("#bQuitarPaso").onclick=()=>{if(jugando||J.pasos.length<2)return;guardaHist();J.pasos.splice(actual,1);actual=Math.max(0,actual-1);todo()};
 $("#nombre").oninput=e=>{J.nombre=e.target.value};
