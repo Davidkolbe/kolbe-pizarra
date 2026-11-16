@@ -456,7 +456,8 @@ function pintaAviso(){
   av.hidden=!t.length;av.textContent=t.join(" · ");av.classList.toggle("mal",mal);
 }
 function blanco(d){
-  const r=rapida(d);r.fichas=r.fichas.filter(f=>f.t!=="b");for(const id in r.pasos[0].pos)if(id[0]==="b")delete r.pasos[0].pos[id];return r;
+  // Ojo: el balón se llama "ball" y también empieza por "b"; se quitan solo los rivales (16-11-2026).
+  const r=rapida(d),riv=r.fichas.filter(f=>f.t==="b").map(f=>f.id);r.fichas=r.fichas.filter(f=>f.t!=="b");riv.forEach(id=>delete r.pasos[0].pos[id]);return r;
 }
 
 function ejemplo(){
@@ -696,7 +697,10 @@ function nuevoId(p){let i=1;while(J.fichas.some(f=>f.id===p+i))i++;return p+i}
 function siguienteDorsal(t){const usados=new Set(J.fichas.filter(f=>f.t===t).map(f=>+f.l));let n=1;while(usados.has(n))n++;return String(n)}
 function anadir(t){
   if(jugando)return;
-  if(t==="balon"&&J.fichas.some(f=>f.t==="balon")){toast("Ya hay un balón en la pista");return}
+  if(t==="balon"){const b=J.fichas.find(f=>f.t==="balon");
+    if(b&&J.pasos[actual].pos[b.id]){toast("Ya hay un balón en la pista");return}
+    // Balón «fantasma» (en la lista pero sin sitio en la pista, como dejaba la jugada en blanco): se quita y se pone uno nuevo.
+    if(b){J.fichas=J.fichas.filter(f=>f!==b);J.pasos.forEach(p=>delete p.pos[b.id])}}
   guardaHist();
   const pref={cono:"c",pica:"p",aro:"r",porteria:"g",escalera:"e",x:"x",a:"a",b:"b"}[t];
   const id=t==="balon"?"ball":nuevoId(pref);
