@@ -904,6 +904,8 @@ $("#bVel").onclick=()=>{lento=!lento;$("#bVel").textContent=lento?"🐢 Lento: s
 // En el ÚLTIMO paso (o en una jugada de un solo paso), al reproducir, cada desmarque o conducción mueve por su línea
 // al jugador del que sale (Kolbe, rival o comodín) y cada pase o tiro mueve el balón, una línea detrás de otra en el
 // orden en que se dibujaron. Los pasos intermedios se reproducen como siempre (de un paso al siguiente).
+// Al reproducir (y en el vídeo) no se pintan las líneas de desmarque ni de conducción: solo las del balón (David, 16-11-2026).
+const enJuego=lst=>(lst||[]).filter(t=>t.k!=="desmarque"&&t.k!=="conduccion");
 function lineasPaso(A){
   const k=dep().k,D=(p,q)=>Math.hypot(p[0]-q[0],p[1]-q[1]),pos=JSON.parse(JSON.stringify(A.pos)),L=[];
   for(const t of A.trazos||[]){
@@ -937,7 +939,7 @@ function enLineas(A,L,ms){
   return {pos,fin:true};
 }
 function animaLineas(i,alAcabar){
-  const A=J.pasos[i],L=lineasPaso(A);actual=i;pintaPasos();pintaFichas(A.pos);pintaTrazos(A.trazos);$("#avisoRot").hidden=true;
+  const A=J.pasos[i],L=lineasPaso(A);actual=i;pintaPasos();pintaFichas(A.pos);pintaTrazos(enJuego(A.trazos));$("#avisoRot").hidden=true;
   $("#hint").textContent=A.nota?`Paso ${i+1}: ${A.nota}`:`Paso ${i+1} de ${J.pasos.length}`;
   const t0=performance.now();jugando=true;
   function f(now){
@@ -949,12 +951,12 @@ function animaLineas(i,alAcabar){
 }
 function animaTramo(i,alAcabar){
   const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches,DUR=reduce?300:(lento?2600:1400);
-  const A=J.pasos[i],B=J.pasos[i+1];actual=i;pintaPasos();pintaFichas(A.pos);pintaTrazos(A.trazos);$("#avisoRot").hidden=true;
+  const A=J.pasos[i],B=J.pasos[i+1];actual=i;pintaPasos();pintaFichas(A.pos);pintaTrazos(enJuego(A.trazos));$("#avisoRot").hidden=true;
   $("#hint").textContent=A.nota?`Paso ${i+1}: ${A.nota}`:`Paso ${i+1} de ${J.pasos.length}`;
   const t0=performance.now();jugando=true;
   function f(now){
     if(!jugando&&animaTramo.parar){animaTramo.parar=false;alAcabar&&alAcabar();return}
-    const t=Math.min(1,(now-t0)/DUR);pintaFichas(avanzar(A,B,t));pintaTrazos(A.trazos,1-0.75*ease(t));
+    const t=Math.min(1,(now-t0)/DUR);pintaFichas(avanzar(A,B,t));pintaTrazos(enJuego(A.trazos),1-0.75*ease(t));
     if(t<1)requestAnimationFrame(f);else{jugando=false;alAcabar&&alAcabar()}
   }
   requestAnimationFrame(f);
@@ -970,11 +972,11 @@ $("#bPlay").onclick=()=>{
     if(!$("#bPlay").dataset.on)return terminar();
     if(i>=ult){
       if(!lineas)return terminar();
-      lineas=false;const A=J.pasos[ult];actual=ult;pintaPasos();pintaFichas(A.pos);pintaTrazos(A.trazos);
+      lineas=false;const A=J.pasos[ult];actual=ult;pintaPasos();pintaFichas(A.pos);pintaTrazos(enJuego(A.trazos));
       // al acabar se queda un momento quieta en la posición final y vuelve al inicio del paso
       setTimeout(()=>animaLineas(ult,ok=>ok?setTimeout(terminar,lento?2500:1600):terminar()),PAUSA);return;
     }
-    const A=J.pasos[i];actual=i;pintaPasos();pintaFichas(A.pos);pintaTrazos(A.trazos);
+    const A=J.pasos[i];actual=i;pintaPasos();pintaFichas(A.pos);pintaTrazos(enJuego(A.trazos));
     setTimeout(()=>animaTramo(i,()=>{i++;sig()}),PAUSA);
   }
   sig();
@@ -1179,11 +1181,11 @@ $("#eVideo").onclick=async()=>{
   const dibuja=async()=>{const c=await lienzo(0.75);x.drawImage(c,0,0)};
   jugando=true;
   for(let i=0;i<J.pasos.length-1;i++){
-    const A=J.pasos[i],B=J.pasos[i+1];actual=i;pintaFichas(A.pos);pintaTrazos(A.trazos);await dibuja();await espera(PAUSA);
+    const A=J.pasos[i],B=J.pasos[i+1];actual=i;pintaFichas(A.pos);pintaTrazos(enJuego(A.trazos));await dibuja();await espera(PAUSA);
     const t0=performance.now();let t=0;
-    while(t<1){t=Math.min(1,(performance.now()-t0)/DUR);pintaFichas(avanzar(A,B,t));pintaTrazos(A.trazos,1-0.75*ease(t));await dibuja();await espera(16)}
+    while(t<1){t=Math.min(1,(performance.now()-t0)/DUR);pintaFichas(avanzar(A,B,t));pintaTrazos(enJuego(A.trazos),1-0.75*ease(t));await dibuja();await espera(16)}
   }
-  actual=J.pasos.length-1;pintaFichas(J.pasos[actual].pos);pintaTrazos(J.pasos[actual].trazos);await dibuja();await espera(1200);
+  actual=J.pasos.length-1;pintaFichas(J.pasos[actual].pos);pintaTrazos(enJuego(J.pasos[actual].trazos));await dibuja();await espera(1200);
   if(Lult.length){const A=J.pasos[actual],t0=performance.now();let r;   // movimiento dentro del último paso
     do{r=enLineas(A,Lult,performance.now()-t0);pintaFichas(r.pos);await dibuja();await espera(16)}while(!r.fin);await espera(1500)}
   jugando=false;rec.stop();await new Promise(r=>rec.onstop=r);actual=guarda;todo();
