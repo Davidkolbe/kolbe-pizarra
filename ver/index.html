@@ -593,10 +593,10 @@ $("#bOrden").onclick=()=>{numerar=!numerar;$("#bOrden").classList.toggle("on",nu
 function pintaPasos(){
   const L=$("#lista");L.replaceChildren(...J.pasos.map((_,i)=>{const b=document.createElement("button");b.className="paso"+(i===actual?" on":"");b.textContent=i+1;b.setAttribute("aria-label","Paso "+(i+1));b.onclick=()=>{if(jugando)return;actual=i;todo()};return b}));
   $("#bQuitarPaso").disabled=J.pasos.length<2;
-  $("#bPlay").disabled=J.pasos.length<2;
+  $("#bPlay").disabled=J.pasos.length<2&&!lineasPaso(J.pasos[J.pasos.length-1]).length;
 }
 function todo(){pintaPista();aplicaVista();pintaFantasma();pintaSel();clearTimeout(todo.t);todo.t=setTimeout(autoguarda,400);pintaAviso();$("#notaPaso").value=J.pasos[actual].nota||"";const P=J.pasos[actual];pintaFichas(P.pos);pintaTrazos(P.trazos);pintaPasos();$("#nombre").value=J.nombre||"";
-  $("#hint").textContent=J.pasos.length<2?"Coloca las fichas y dibuja. Luego ＋ Paso para el siguiente momento.":`Paso ${actual+1} de ${J.pasos.length}. Las flechas de un paso dicen lo que pasa hasta el siguiente.`;}
+  $("#hint").textContent=J.pasos.length<2?"Coloca las fichas y dibuja. Con ▶ Reproducir cada jugador sigue su desmarque y el balón su pase, en el orden en que los dibujaste.":`Paso ${actual+1} de ${J.pasos.length}. Las flechas de un paso dicen lo que pasa hasta el siguiente.`;}
 
 // ---------- coordenadas ----------
 function punto(ev){const pt=svg.createSVGPoint();pt.x=ev.clientX;pt.y=ev.clientY;const m=$("#mundo").getScreenCTM().inverse();const r=pt.matrixTransform(m);
@@ -900,6 +900,53 @@ $("#bHablar").onclick=()=>{
 $("#bMedia").onclick=()=>{if(jugando)return;guardaHist();const V=vista();V.media={"":"der",der:"izq",izq:""}[V.media||""];todo()};
 $("#bGirar").onclick=()=>{if(jugando)return;guardaHist();const V=vista();V.girar=!V.girar;todo()};
 $("#bVel").onclick=()=>{lento=!lento;$("#bVel").textContent=lento?"🐢 Lento: sí":"🐢 Lento: no"};
+// ---------- Movimiento dentro de un mismo paso (David, 16-11-2026) ----------
+// En el ÚLTIMO paso (o en una jugada de un solo paso), al reproducir, cada desmarque o conducción mueve por su línea
+// al jugador del que sale (Kolbe, rival o comodín) y cada pase o tiro mueve el balón, una línea detrás de otra en el
+// orden en que se dibujaron. Los pasos intermedios se reproducen como siempre (de un paso al siguiente).
+function lineasPaso(A){
+  const k=dep().k,D=(p,q)=>Math.hypot(p[0]-q[0],p[1]-q[1]),pos=JSON.parse(JSON.stringify(A.pos)),L=[];
+  for(const t of A.trazos||[]){
+    if(!t.a||!t.b)continue;
+    const pts=(t.pts&&t.pts.length>1?t.pts:[t.a,t.b]).map(p=>p.slice()),fin=pts[pts.length-1];
+    if(t.k==="desmarque"||t.k==="conduccion"){
+      let mejor=null,dm=2.2*k;
+      for(const id in pos){if(id==="ball")continue;const f=J.fichas.find(x=>x.id===id);if(!f||!["a","b","x","lib"].includes(f.t))continue;
+        const d=D(pos[id],t.a);if(d<dm){dm=d;mejor=id}}
+      if(!mejor)continue;
+      const lleva=t.k==="conduccion"&&pos.ball&&D(pos.ball,pos[mejor])<1.5*k,off=lleva?[pos.ball[0]-pos[mejor][0],pos.ball[1]-pos[mejor][1]]:null;
+      L.push({id:mejor,pts:[pos[mejor].slice(),...pts],off});
+      pos[mejor]=fin.slice();if(off)pos.ball=[fin[0]+off[0],fin[1]+off[1]];
+    }else if((t.k==="pase"||t.k==="tiro")&&pos.ball&&D(pos.ball,t.a)<3*k){
+      L.push({id:"ball",pts:[pos.ball.slice(),...pts]});pos.ball=fin.slice();
+    }
+  }
+  return L;
+}
+function durLinea(l){
+  if(matchMedia("(prefers-reduced-motion: reduce)").matches)return 150;
+  let len=0;for(let i=1;i<l.pts.length;i++)len+=Math.hypot(l.pts[i][0]-l.pts[i-1][0],l.pts[i][1]-l.pts[i-1][1]);
+  return Math.max(450,3500*len/dep().W)*(lento?1.9:1);
+}
+// Dónde está cada ficha a los «ms» milisegundos de empezar las líneas del paso A.
+function enLineas(A,L,ms){
+  const pos=JSON.parse(JSON.stringify(A.pos));let t=ms;
+  for(const l of L){const d=durLinea(l),p=sobreLinea(l.pts,ease(Math.min(1,Math.max(0,t/d))));
+    pos[l.id]=p;if(l.off)pos.ball=[p[0]+l.off[0],p[1]+l.off[1]];
+    if(t<d)return {pos,fin:false};t-=d}
+  return {pos,fin:true};
+}
+function animaLineas(i,alAcabar){
+  const A=J.pasos[i],L=lineasPaso(A);actual=i;pintaPasos();pintaFichas(A.pos);pintaTrazos(A.trazos);$("#avisoRot").hidden=true;
+  $("#hint").textContent=A.nota?`Paso ${i+1}: ${A.nota}`:`Paso ${i+1} de ${J.pasos.length}`;
+  const t0=performance.now();jugando=true;
+  function f(now){
+    if(!$("#bPlay").dataset.on){jugando=false;alAcabar&&alAcabar(false);return}
+    const r=enLineas(A,L,now-t0);pintaFichas(r.pos);
+    if(!r.fin)requestAnimationFrame(f);else{jugando=false;alAcabar&&alAcabar(true)}
+  }
+  requestAnimationFrame(f);
+}
 function animaTramo(i,alAcabar){
   const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches,DUR=reduce?300:(lento?2600:1400);
   const A=J.pasos[i],B=J.pasos[i+1];actual=i;pintaPasos();pintaFichas(A.pos);pintaTrazos(A.trazos);$("#avisoRot").hidden=true;
@@ -914,11 +961,19 @@ function animaTramo(i,alAcabar){
 }
 $("#bPlay").onclick=()=>{
   if($("#bPlay").dataset.on){delete $("#bPlay").dataset.on;return}
-  if(J.pasos.length<2||jugando)return;
+  const ult=J.pasos.length-1;let lineas=lineasPaso(J.pasos[ult]).length>0;
+  if((J.pasos.length<2&&!lineas)||jugando)return;
   $("#bPlay").dataset.on=1;$("#bPlay").textContent="■ Parar";
   const PAUSA=lento?900:550;let i=0;
+  const terminar=()=>{delete $("#bPlay").dataset.on;$("#bPlay").textContent="▶ Reproducir";actual=Math.min(i,ult);todo()};
   function sig(){
-    if(!$("#bPlay").dataset.on||i>=J.pasos.length-1){delete $("#bPlay").dataset.on;$("#bPlay").textContent="▶ Reproducir";actual=Math.min(i,J.pasos.length-1);todo();return}
+    if(!$("#bPlay").dataset.on)return terminar();
+    if(i>=ult){
+      if(!lineas)return terminar();
+      lineas=false;const A=J.pasos[ult];actual=ult;pintaPasos();pintaFichas(A.pos);pintaTrazos(A.trazos);
+      // al acabar se queda un momento quieta en la posición final y vuelve al inicio del paso
+      setTimeout(()=>animaLineas(ult,ok=>ok?setTimeout(terminar,lento?2500:1600):terminar()),PAUSA);return;
+    }
     const A=J.pasos[i];actual=i;pintaPasos();pintaFichas(A.pos);pintaTrazos(A.trazos);
     setTimeout(()=>animaTramo(i,()=>{i++;sig()}),PAUSA);
   }
@@ -1112,7 +1167,8 @@ $("#eImagen").onclick=async()=>{try{$("#eEstado").textContent="Preparando la ima
   cv.toBlob(async b=>{$("#eEstado").textContent=await entregar(b,nombreArchivo("png"))},"image/png")}catch(e){$("#eEstado").textContent="No se ha podido hacer la imagen en este navegador."}};
 // Vídeo: se reproduce la jugada en un lienzo y se graba
 $("#eVideo").onclick=async()=>{
-  if(J.pasos.length<2){$("#eEstado").textContent="La jugada tiene un solo paso: para eso vale la imagen.";return}
+  const Lult=lineasPaso(J.pasos[J.pasos.length-1]);
+  if(J.pasos.length<2&&!Lult.length){$("#eEstado").textContent="La jugada tiene un solo paso y sin flechas: para eso vale la imagen.";return}
   if(!window.MediaRecorder||!HTMLCanvasElement.prototype.captureStream){$("#eEstado").textContent="Este navegador no puede grabar vídeo. Prueba con Chrome o Safari actualizados.";return}
   const tipo=["video/mp4;codecs=avc1","video/mp4","video/webm;codecs=vp9","video/webm"].find(t=>MediaRecorder.isTypeSupported(t));
   if(!tipo){$("#eEstado").textContent="Este navegador no sabe grabar vídeo.";return}
@@ -1128,6 +1184,8 @@ $("#eVideo").onclick=async()=>{
     while(t<1){t=Math.min(1,(performance.now()-t0)/DUR);pintaFichas(avanzar(A,B,t));pintaTrazos(A.trazos,1-0.75*ease(t));await dibuja();await espera(16)}
   }
   actual=J.pasos.length-1;pintaFichas(J.pasos[actual].pos);pintaTrazos(J.pasos[actual].trazos);await dibuja();await espera(1200);
+  if(Lult.length){const A=J.pasos[actual],t0=performance.now();let r;   // movimiento dentro del último paso
+    do{r=enLineas(A,Lult,performance.now()-t0);pintaFichas(r.pos);await dibuja();await espera(16)}while(!r.fin);await espera(1500)}
   jugando=false;rec.stop();await new Promise(r=>rec.onstop=r);actual=guarda;todo();
   const blob=new Blob(trozos,{type:tipo.split(";")[0]});
   $("#eEstado").textContent=await entregar(blob,nombreArchivo(tipo.includes("mp4")?"mp4":"webm"))+(tipo.includes("webm")?" (formato WebM: en iPhone puede que WhatsApp no lo abra; desde el iPad sale en MP4)":"");
