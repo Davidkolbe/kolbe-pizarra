@@ -1,7 +1,9 @@
 <!doctype html>
-<!-- Página puente de la app de entrenadores del CDK (19-11-2026).
-     Solo lleva el escudo y el enlace a la app de Apps Script: ningún dato del club ni de alumnos.
-     Fuente: PROYECTOS CLAUDE/CLUB DEPORTIVO KOLBE/APP_ENTRENADORES/puente/ · Publicada en davidkolbe.github.io/kolbe-pizarra/cdk/ -->
+<!-- Página puente de la app de entrenadores del CDK (19-11-2026; pasos pulidos el 20-11-2026).
+     Solo lleva el escudo, los pasos para instalarla y el enlace a la app de Apps Script:
+     ningún dato del club ni de alumnos.
+     Fuente: PROYECTOS CLAUDE/CLUB DEPORTIVO KOLBE/APP_ENTRENADORES/puente/ · Publicada en davidkolbe.github.io/kolbe-pizarra/cdk/
+     Para ver cada versión desde el Mac: ?ver=iphone · ?ver=android · ?ver=pc -->
 <html lang="es">
 <head>
 <meta charset="utf-8">
@@ -11,40 +13,156 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="CDK">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#007937">
+<meta name="theme-color" content="#0f3d24">
 <link rel="apple-touch-icon" href="icono-180.png">
 <link rel="icon" type="image/png" href="icono-192.png">
 <link rel="manifest" href="manifest.webmanifest">
 <style>
-  body{margin:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
-       background:#0f3d24;color:#fff;font-family:-apple-system,system-ui,sans-serif;text-align:center;padding:24px;box-sizing:border-box}
-  img{width:120px;height:120px;margin-bottom:20px}
-  h1{font-size:22px;margin:0 0 12px}
-  p{font-size:16px;line-height:1.45;max-width:340px;margin:0 0 14px}
-  a.boton{display:inline-block;margin-top:8px;padding:12px 22px;border-radius:10px;background:#fff;color:#0f3d24;
-          font-weight:600;text-decoration:none}
-  #instalar{display:none}
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;background:#0f3d24;color:#fff;font-family:-apple-system,system-ui,sans-serif;
+       padding:28px 16px 40px;display:flex;flex-direction:column;align-items:center}
+  .caja{width:100%;max-width:380px}
+  .cabeza{text-align:center}
+  .cabeza img{width:96px;height:96px}
+  h1{font-size:22px;margin:10px 0 4px}
+  .sub{font-size:15px;opacity:.85;margin:0 0 20px}
+  .pestanas{display:flex;gap:6px;background:rgba(255,255,255,.1);border-radius:12px;padding:4px;margin-bottom:18px}
+  .pestanas button{flex:1;border:0;border-radius:9px;padding:9px 4px;font-family:inherit;font-size:14px;font-weight:600;line-height:1;
+       background:transparent;color:#fff;cursor:pointer}
+  .pestanas button.si{background:#fff;color:#0f3d24}
+  .pasos{display:none}
+  .pasos.si{display:block}
+  ol{list-style:none;margin:0;padding:0;counter-reset:p}
+  li{counter-increment:p;position:relative;background:#fff;color:#1b2a21;border-radius:12px;
+     padding:14px 14px 14px 52px;margin-bottom:10px;font-size:16px;line-height:1.4}
+  li::before{content:counter(p);position:absolute;left:14px;top:13px;width:26px;height:26px;border-radius:50%;
+     background:#0f3d24;color:#fff;font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center}
+  li small{display:block;color:#5b6b61;font-size:14px;margin-top:4px}
+  .ico{display:inline-block;vertical-align:-4px;width:20px;height:20px}
+  .aviso{background:#ffd54a;color:#3a2c00;border-radius:12px;padding:12px 14px;font-size:15px;line-height:1.4;margin-bottom:14px}
+  .aviso b:first-child{display:block;margin-bottom:2px}
+  .nota{font-size:14px;line-height:1.45;opacity:.85;margin:14px 2px 0}
+  .boton{display:block;width:100%;text-align:center;margin-top:6px;padding:13px;border-radius:12px;border:0;
+     background:#fff;color:#0f3d24;font-family:inherit;font-size:16px;font-weight:700;line-height:1.2;text-decoration:none;cursor:pointer}
+  .boton.claro{background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.6);font-weight:600}
+  #instalarAndroid{display:none}
+  #abriendo{display:none;text-align:center;font-size:16px;margin-top:30px}
 </style>
 </head>
 <body>
-<img src="icono-180.png" alt="Escudo del Club Deportivo Kolbe">
-<h1>Entrenadores CDK</h1>
-<div id="abriendo"><p>Abriendo la app…</p></div>
-<div id="instalar">
-  <p>Para tenerla como una app más: toca <b>Compartir</b> (el cuadrado con la flecha hacia arriba) y después
-     <b>«Añadir a pantalla de inicio»</b>. Luego ábrela siempre desde ese icono.</p>
+<div class="caja">
+  <div class="cabeza">
+    <img src="icono-180.png" alt="Escudo del Club Deportivo Kolbe">
+    <h1>App de entrenadores</h1>
+    <p class="sub">Tus equipos, partidos y entrenos en el móvil.</p>
+  </div>
+
+  <div id="abriendo">Abriendo la app…</div>
+
+  <div id="guia">
+    <div class="aviso" id="avisoApp">
+      <b>Estás dentro de WhatsApp (o de otra app).</b>
+      Así no se puede instalar. Toca <b>···</b> o <b>⋮</b> arriba y elige <b>«Abrir en Safari»</b>
+      (iPhone) o <b>«Abrir en Chrome»</b> (Android).
+    </div>
+
+    <div class="pestanas" role="tablist">
+      <button data-p="iphone">iPhone</button>
+      <button data-p="android">Android</button>
+      <button data-p="pc">Ordenador</button>
+    </div>
+
+    <!-- iPhone y iPad -->
+    <div class="pasos" id="p-iphone">
+      <ol>
+        <li>Abre esta página en <b>Safari</b>.
+          <small>Si estás en Chrome también vale: el botón de compartir está arriba, junto a la dirección.</small></li>
+        <li>Toca <b>Compartir</b>
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="#0a7aff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5"/><path d="M8 10H6a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1h-2"/></svg>
+          abajo en el centro.
+          <small>Si no lo ves, toca primero <b>···</b> abajo a la derecha.</small></li>
+        <li>Baja un poco y toca <b>«Añadir a pantalla de inicio»</b>. Deja el nombre <b>CDK</b> y toca <b>Añadir</b>.</li>
+        <li>Abre la app <b>siempre desde el icono del escudo</b>. La primera vez entra con tu cuenta
+          <b>@colegiokolbe.com</b>.</li>
+      </ol>
+    </div>
+
+    <!-- Android -->
+    <div class="pasos" id="p-android">
+      <button class="boton" id="instalarAndroid">Instalar la app</button>
+      <ol>
+        <li>Abre esta página en <b>Chrome</b>.</li>
+        <li>Toca el menú <b>⋮</b> arriba a la derecha.</li>
+        <li>Toca <b>«Añadir a pantalla de inicio»</b> (en algunos móviles pone <b>«Instalar aplicación»</b>)
+          y después <b>Añadir</b> o <b>Instalar</b>.</li>
+        <li>Abre la app <b>siempre desde el icono del escudo</b>. La primera vez entra con tu cuenta
+          <b>@colegiokolbe.com</b>.</li>
+      </ol>
+    </div>
+
+    <!-- Ordenador -->
+    <div class="pasos" id="p-pc">
+      <ol>
+        <li>En el ordenador no hace falta instalar nada: entra con el botón de abajo y guárdala en marcadores.</li>
+        <li>Si te sale «No tienes permiso» o te pide otra cuenta, es que el navegador está con tu Gmail personal.
+          Cambia arriba a la derecha a tu cuenta <b>@colegiokolbe.com</b>, o abre el enlace en una ventana de incógnito.</li>
+      </ol>
+      <a class="boton" id="enlacePc" href="#">Abrir la app</a>
+    </div>
+
+    <p class="nota">¿Tienes varias cuentas de Google? Cuando la app te pida entrar, elige siempre la
+      <b>@colegiokolbe.com</b>. Con otra no se abre.</p>
+    <button class="boton claro" id="copiar">Copiar el enlace de esta página</button>
+  </div>
 </div>
-<a class="boton" id="enlace" href="#">Abrir la app</a>
+
 <script>
   var APP = "https://script.google.com/a/macros/colegiokolbe.com/s/AKfycbwiIzxktvw_w9G7gCSmID4cf9-IFTPbCSLfHkCWjs7lUkfQGjM5cAkSrRQfaf-SpqJJ/exec";
-  document.getElementById("enlace").href = APP;
+  var PUENTE = "https://davidkolbe.github.io/kolbe-pizarra/cdk/";
+
   var desdeIcono = window.navigator.standalone === true ||
                    (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches);
   if (desdeIcono) {
-    location.replace(APP);            // abierta desde el icono: salta directa a la app
+    // Abierta desde el icono: salta directa a la app.
+    document.getElementById("guia").style.display = "none";
+    document.getElementById("abriendo").style.display = "block";
+    location.replace(APP);
   } else {
-    document.getElementById("abriendo").style.display = "none";
-    document.getElementById("instalar").style.display = "block";   // en el navegador: explica cómo añadirla
+    var ua = navigator.userAgent || "";
+    var ipad = /Macintosh/.test(ua) && navigator.maxTouchPoints > 1;
+    var aparato = /iPhone|iPad|iPod/.test(ua) || ipad ? "iphone" : (/Android/.test(ua) ? "android" : "pc");
+    var pedido = (location.search.match(/[?&]ver=(iphone|android|pc)/) || [])[1];
+    // Navegadores metidos dentro de otra app: ahí no sale «Añadir a pantalla de inicio».
+    var dentroDeApp = /FBAN|FBAV|FB_IAB|Instagram|WhatsApp|Line\/|; wv\)/.test(ua) || /[?&]ver=app/.test(location.search);
+    document.getElementById("avisoApp").style.display = dentroDeApp ? "block" : "none";
+
+    var botones = document.querySelectorAll(".pestanas button");
+    function ver(p) {
+      for (var i = 0; i < botones.length; i++) botones[i].className = botones[i].getAttribute("data-p") === p ? "si" : "";
+      ["iphone", "android", "pc"].forEach(function (x) {
+        document.getElementById("p-" + x).className = "pasos" + (x === p ? " si" : "");
+      });
+    }
+    for (var i = 0; i < botones.length; i++) botones[i].onclick = function () { ver(this.getAttribute("data-p")); };
+    ver(pedido || aparato);
+
+    // Solo el ordenador lleva botón a la app: en el móvil, abrirla así deja un icono que no sirve.
+    document.getElementById("enlacePc").href = APP;
+
+    // Android con Chrome: si el navegador ofrece instalarla, un botón directo.
+    var oferta = null;
+    window.addEventListener("beforeinstallprompt", function (e) {
+      e.preventDefault(); oferta = e;
+      document.getElementById("instalarAndroid").style.display = "block";
+    });
+    document.getElementById("instalarAndroid").onclick = function () { if (oferta) { oferta.prompt(); oferta = null; } };
+
+    document.getElementById("copiar").onclick = function () {
+      var b = this;
+      function hecho() { b.textContent = "Copiado ✓"; setTimeout(function () { b.textContent = "Copiar el enlace de esta página"; }, 2000); }
+      if (navigator.clipboard) navigator.clipboard.writeText(PUENTE).then(hecho, function () { prompt("Copia este enlace:", PUENTE); });
+      else prompt("Copia este enlace:", PUENTE);
+    };
   }
 </script>
 </body>
