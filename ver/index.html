@@ -299,11 +299,13 @@ body.visor #nombre{border:0;background:transparent;pointer-events:none}
       <div id="sPartes" style="display:flex;flex-direction:column;gap:10px"></div>
       <strong id="sTotal"></strong>
     </div>
-    <span class="hint">Se guardan solo en esta tablet.</span>
+    <span class="hint">«Sesiones del club» las ve todo el club. Las tuyas se guardan <b>solo en esta tablet</b>; para que las vea el club: ábrela → «📤 Proponer al club» y se la mandas a David.</span>
+    <textarea id="txtPropS" rows="3" hidden aria-label="Texto de la sesión para mandar al club"></textarea>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button id="sNueva">＋ Sesión nueva</button>
       <button id="sVolver" hidden>◀ Volver</button>
       <span class="sp"></span>
+      <button id="sProponer" hidden title="Copia la sesión para mandarla por WhatsApp al club">📤 Proponer al club</button>
       <button id="sGuardar" hidden>Guardar sesión</button>
       <button id="sEmpezar" class="prim" hidden>▶ Empezar</button>
       <button id="sCerrar">Cerrar</button>
@@ -483,6 +485,11 @@ const JUGADAS_CLUB=[
   {autor:"Ejemplo",j:ejemplo()},
 
 ];
+// Sesiones del club: como las jugadas del club, van dentro de la página y las ve cualquier entrenador.
+// Las mete Claude (las que propongan los entrenadores con «📤 Proponer al club»). La app de entrenadores las lee de aquí,
+// por eso el JSON va entre las dos marcas, en una sola línea por sesión. Se abren con …/kolbe-pizarra/#sesion=<id>.
+// 22-11-2026: solo hay un EJEMPLO para enseñar cómo va; no es una sesión real del club.
+const SESIONES_CLUB=[];
 let J=ejemplo();
 
 // ---------- almacenamiento (solo en esta tablet) ----------
@@ -1074,17 +1081,27 @@ function escribirS(l){try{localStorage.setItem(KEY_S,JSON.stringify(l));return t
 function todasJugadas(){return [...leer().map(j=>({clave:"t:"+j.id,nombre:j.nombre||"Sin nombre",j})),...JUGADAS_CLUB.map(c=>({clave:"c:"+c.j.nombre,nombre:c.j.nombre.replace(/^Ejemplo · /,"")+" (club)",j:c.j}))]}
 function buscaJugada(clave){return todasJugadas().find(x=>x.clave===clave)}
 function verLista(){
-  S=null;$("#sesEdit").hidden=true;$("#sesLista").hidden=false;["#sVolver","#sGuardar","#sEmpezar"].forEach(q=>$(q).hidden=true);$("#sNueva").hidden=false;
-  const l=leerS();$("#sesLista").replaceChildren(...(l.length?l.map(x=>{const d=document.createElement("div");d.className="fila";
+  S=null;$("#txtPropS").hidden=true;$("#sesEdit").hidden=true;$("#sesLista").hidden=false;["#sVolver","#sProponer","#sGuardar","#sEmpezar"].forEach(q=>$(q).hidden=true);$("#sNueva").hidden=false;
+  const l=leerS(),tit=t=>Object.assign(document.createElement("strong"),{textContent:t});
+  const club=SESIONES_CLUB.map(x=>{const d=document.createElement("div");d.className="fila";
+    const t=document.createElement("div");t.className="t";const b=document.createElement("b");b.textContent=x.nombre.replace(/^Ejemplo · /,"")+(x.autor==="Ejemplo"?" (ejemplo)":"");
+    const sp=document.createElement("span");sp.textContent=[DEPS_S[x.deporte]||"",x.categoria&&x.categoria!=="Todas"?x.categoria:"",minutos(x)+" min"].filter(Boolean).join(" · ");t.append(b,sp);
+    const ab=document.createElement("button");ab.textContent="Abrir";ab.onclick=()=>editar(copiaClub(x));
+    const em=document.createElement("button");em.className="prim";em.textContent="▶ Empezar";em.onclick=()=>{S=copiaClub(x);empieza(false)};
+    d.append(t,ab,em);return d});
+  $("#sesLista").replaceChildren(tit("Sesiones del club"),...club,tit("Mis sesiones (en esta tablet)"),...(l.length?l.map(x=>{const d=document.createElement("div");d.className="fila";
     const t=document.createElement("div");t.className="t";const b=document.createElement("b");b.textContent=x.nombre||"Sin nombre";
     const sp=document.createElement("span");sp.textContent=[x.categoria&&x.categoria!=="Todas"?x.categoria:"",minutos(x)+" min"].filter(Boolean).join(" · ");t.append(b,sp);
     const ab=document.createElement("button");ab.textContent="Abrir";ab.onclick=()=>editar(JSON.parse(JSON.stringify(x)));
     const br=document.createElement("button");br.textContent="Borrar";br.onclick=()=>{if(br.dataset.ok){escribirS(leerS().filter(y=>y.id!==x.id));verLista()}else{br.dataset.ok=1;br.textContent="¿Seguro?";br.style.color="var(--danger)"}};
     d.append(t,ab,br);return d}):[Object.assign(document.createElement("span"),{className:"hint",textContent:"Todavía no hay sesiones en esta tablet."})]));
 }
+const DEPS_S={fs:"Fútbol sala",f7:"Fútbol 7",voley:"Voleibol"};
+// Una sesión del club se abre como copia: si el entrenador la guarda, queda como suya en esta tablet y la del club no cambia.
+function copiaClub(x){const c=JSON.parse(JSON.stringify(x));c.id="s"+Date.now();c.nombre=c.nombre.replace(/^Ejemplo · /,"");c.deClub=x.id;delete c.autor;return c}
 function minutos(x){return PARTES.reduce((s,[k])=>s+(x.partes[k]||[]).reduce((a,it)=>a+(+it.min||0),0),0)}
 function editar(x){
-  S=x;$("#sesLista").hidden=true;$("#sesEdit").hidden=false;$("#sNueva").hidden=true;["#sVolver","#sGuardar","#sEmpezar"].forEach(q=>$(q).hidden=false);
+  S=x;$("#sesLista").hidden=true;$("#sesEdit").hidden=false;$("#sNueva").hidden=true;["#sVolver","#sProponer","#sGuardar","#sEmpezar"].forEach(q=>$(q).hidden=false);
   $("#sNombre").value=S.nombre||"";$("#sCat").value=S.categoria||"Todas";pintaPartes();
 }
 function pintaPartes(){
@@ -1111,9 +1128,17 @@ $("#bSesiones").onclick=()=>{verLista();$("#veloSes").hidden=false};
 $("#sCerrar").onclick=()=>{$("#veloSes").hidden=true};$("#sVolver").onclick=verLista;
 $("#sNueva").onclick=()=>editar({id:"s"+Date.now(),nombre:"",categoria:"Todas",partes:{cal:[],pri:[],vue:[]}});
 $("#sGuardar").onclick=()=>{toast(guardaSesion()?"Sesión guardada en esta tablet":"No se ha podido guardar en este navegador");verLista()};
-$("#sEmpezar").onclick=()=>{guardaSesion();const items=[];PARTES.forEach(([k,tit])=>(S.partes[k]||[]).forEach(it=>items.push({...it,parte:tit})));
+$("#sEmpezar").onclick=()=>empieza(true);
+function empieza(guardar){if(guardar)guardaSesion();const items=[];PARTES.forEach(([k,tit])=>(S.partes[k]||[]).forEach(it=>items.push({...it,parte:tit})));
   if(!items.length){toast("Añade algo a la sesión");return}
-  sesAct={items,i:0};$("#veloSes").hidden=true;arrancaItem()};
+  sesAct={items,i:0};$("#veloSes").hidden=true;arrancaItem()}
+// Proponer una sesión al club: igual que las jugadas, se copia como texto y se manda por WhatsApp a David.
+$("#sProponer").onclick=()=>{S.nombre=$("#sNombre").value.trim();S.categoria=$("#sCat").value;
+  if(!S.nombre){$("#sNombre").focus();toast("Ponle antes un nombre a la sesión");return}
+  const usadas=[];PARTES.forEach(([k])=>(S.partes[k]||[]).forEach(it=>{if(it.ref&&it.ref.startsWith("t:")){const x=buscaJugada(it.ref);if(x)usadas.push(x.j)}}));
+  const txt="PIZARRA-KOLBE-SESION:"+JSON.stringify({sesion:S,jugadas:usadas});
+  const ver=()=>{const t=$("#txtPropS");t.hidden=false;t.value=txt;t.focus();t.select();toast("Copia este texto y mándaselo al club por WhatsApp")};
+  try{navigator.clipboard.writeText(txt).then(()=>toast("Copiada. Pégala en WhatsApp y mándasela al club"),ver)}catch(e){ver()}};
 function arrancaItem(){
   const it=sesAct.items[sesAct.i];if(it.ref){const x=buscaJugada(it.ref);if(x){J=JSON.parse(JSON.stringify(x.j));if(it.ref.startsWith("c:"))J.ejemplo=true;idActual=it.ref.startsWith("t:")?x.j.id:null;actual=0;hist=[];todo()}}
   let resta=(+it.min||10)*60;clearInterval(crono);
@@ -1255,6 +1280,10 @@ if(VISOR){document.body.classList.add("visor");
 if(!VISOR)try{const b=JSON.parse(localStorage.getItem(KEY_B)||"null");
   if(b&&b.J&&!b.J.ejemplo&&b.J.pasos&&b.J.pasos.length){J=b.J;idActual=b.idActual||null;setTimeout(()=>toast("He recuperado lo último que tenías en pantalla"),300)}}catch(e){}
 todo();
+// Enlace desde la app de entrenadores: …/kolbe-pizarra/#sesion=<id> abre esa sesión del club (22-11-2026).
+if(!VISOR){const m=location.hash.match(/^#sesion=([\w-]+)$/);if(m){const x=SESIONES_CLUB.find(y=>y.id===m[1]);
+  if(x){verLista();editar(copiaClub(x));$("#veloSes").hidden=false}else setTimeout(()=>toast("Esa sesión ya no está en la pizarra"),300);
+  try{history.replaceState(null,"",location.pathname+location.search)}catch(e){}}}
 })();
 </script>
 
