@@ -596,8 +596,9 @@ function trazoEl(t,i){
 }
 function fichaEl(f,p){
   const g=el("g",{class:"ficha","data-id":f.id,transform:trf(p,` scale(${dep().k})`)});
-  if(f.t==="balon"){g.append(el("circle",{r:0.42,fill:"#fff",stroke:"#1b1b1b","stroke-width":0.09}),el("circle",{r:0.14,fill:"#1b1b1b"}));
-    g.append(el("circle",{r:1.1,fill:"transparent"}));}
+  // Balón más grande y más fácil de agarrar (David, 23-11-2026: a los entrenadores les costaba moverlo). Antes r 0.42 y zona 1.1.
+  if(f.t==="balon"){g.append(el("circle",{r:0.62,fill:"#fff",stroke:"#1b1b1b","stroke-width":0.12}),el("circle",{r:0.21,fill:"#1b1b1b"}));
+    g.append(el("circle",{r:1.35,fill:"transparent"}));}
   else if(f.t==="pica"){g.append(el("circle",{r:0.28,fill:"#ffd400",stroke:"#6b5600","stroke-width":0.06}),el("circle",{r:0.1,fill:"#6b5600"}),el("circle",{r:0.9,fill:"transparent"}));}
   else if(f.t==="aro"){g.append(el("circle",{r:0.6,fill:"none",stroke:"#ff4fa3","stroke-width":0.14}),el("circle",{r:0.9,fill:"transparent"}));}
   else if(f.t==="porteria"){g.append(el("rect",{x:-0.35,y:-0.9,width:0.7,height:1.8,fill:"rgba(255,255,255,.25)",stroke:"#fff","stroke-width":0.12}),el("circle",{r:1.1,fill:"transparent"}));}
@@ -628,7 +629,8 @@ function pintaFantasma(){
 function pintaSel(){const g=$("#gSel");g.replaceChildren();const k=dep().k;
   sel.forEach(id=>{const p=J.pasos[actual].pos[id];if(p)g.append(el("circle",{cx:p[0],cy:p[1],r:1.25*k,fill:"none",stroke:"#7fd3ff","stroke-width":0.14*k}))});
   if(marco){const x=Math.min(marco.a[0],marco.b[0]),y=Math.min(marco.a[1],marco.b[1]);g.append(el("rect",{x,y,width:Math.abs(marco.b[0]-marco.a[0]),height:Math.abs(marco.b[1]-marco.a[1]),fill:"#7fd3ff","fill-opacity":0.12,stroke:"#7fd3ff","stroke-width":0.08*k,"stroke-dasharray":`${0.3*k} ${0.2*k}`}))}}
-function pintaFichas(pos){posVista=pos;marcas=marcasVoley();gF.replaceChildren(...J.fichas.filter(f=>pos[f.id]).map(f=>fichaEl(f,pos[f.id])))}
+// El balón se pinta siempre el último, encima de todos, para que al tocarlo se agarre el balón y no el jugador de al lado.
+function pintaFichas(pos){posVista=pos;marcas=marcasVoley();gF.replaceChildren(...J.fichas.filter(f=>pos[f.id]).sort((a,b)=>(a.t==="balon")-(b.t==="balon")).map(f=>fichaEl(f,pos[f.id])))}
 let numerar=false;
 function pintaTrazos(lst,op){let n=0;const k=dep().k;gT.replaceChildren(...lst.map((t,i)=>{const e=trazoEl(t,i);if(op!=null)e.setAttribute("opacity",op);
   if(numerar&&["pase","tiro","conduccion","desmarque"].includes(t.k)){n++;
