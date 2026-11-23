@@ -100,6 +100,43 @@ svg#pista{width:100%;height:100%;touch-action:none;user-select:none;-webkit-user
   .tools .grupo{display:none}
   .grpvoley{flex-direction:row;flex-wrap:wrap}
 }
+/* ===== Móvil (23-11-2026): los entrenadores decían que en el móvil no iba. En vertical la pista medía 0 px de alto:
+   los botones se comían toda la pantalla. En el móvil: arriba solo nombre, ☰ Menú y Guardar; la pista en grande (girada
+   en vertical); debajo, herramientas y pasos en UNA fila cada una que se desliza con el dedo. ===== */
+.solomovil{display:none!important}
+body.movil .solomovil{display:flex!important}
+body.movil{padding-left:max(8px,env(safe-area-inset-left,0px));padding-right:max(8px,env(safe-area-inset-right,0px))}
+body.movil .app{height:100vh;height:100dvh;gap:6px;padding-block:6px}
+body.movil header{flex-wrap:nowrap;gap:6px}
+body.movil:not(.menu) header>:not(#nombre):not(#bMenu):not(#bGuardar){display:none!important}
+body.movil header .nombre{min-width:0;padding:8px}
+body.movil button{padding:8px 10px;gap:6px}
+body.movil.menu header{position:fixed;left:0;right:0;top:0;z-index:15;flex-wrap:wrap;background:var(--bg);
+  padding:10px max(10px,env(safe-area-inset-left,0px)) 12px;border-bottom:1px solid var(--line);box-shadow:0 8px 24px rgba(0,0,0,.35);max-height:85vh;overflow:auto}
+body.movil.menu header .nombre{flex:1 1 100%;order:-1}
+body.movil.menu header h1{flex:1 1 100%;order:-2}
+body.movil header .voz{flex:1 1 100%;order:5}
+body.movil .tools,body.movil .pasos{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;padding:6px;gap:6px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+body.movil .tools::-webkit-scrollbar,body.movil .pasos::-webkit-scrollbar{display:none}
+body.movil .tools>*,body.movil .pasos>*,body.movil .pasos .lista>*{flex:none}
+body.movil .pasos .lista{flex-wrap:nowrap}
+body.movil .pasos>strong,body.movil .pasos .sp,body.movil #hint{display:none}
+body.movil #notaPaso,body.movil #txtNuevo{flex:0 0 170px}
+body.movil #bPlay{order:-3}body.movil #bAnt{order:-2}body.movil #bSig{order:-1}
+body.movil .tools .grupo{display:none}
+body.movil .tools .colores,body.movil .grpvoley{flex-direction:row;flex-wrap:nowrap}
+/* móvil en vertical: una columna, la pista arriba y las dos filas de botones abajo (donde llega el pulgar) */
+body.movilV:not(.presenta) .app{grid-template-columns:1fr;grid-template-rows:auto 1fr auto auto}
+body.movilV:not(.presenta) .stage{grid-row:2;grid-column:1}
+body.movilV:not(.presenta) .tools{grid-row:3;grid-column:1;flex-direction:row}
+body.movilV:not(.presenta) .pasos{grid-row:4}
+/* móvil en horizontal: herramientas en columna a la izquierda, que se desliza hacia abajo */
+body.movil:not(.movilV):not(.presenta) .app{grid-template-columns:auto 1fr;grid-template-rows:auto 1fr auto}
+body.movil:not(.movilV) .tools{flex-direction:column;overflow-x:hidden;overflow-y:auto;max-width:150px}
+body.movil:not(.movilV) .tools button{font-size:.85rem}
+body.movil:not(.movilV) .tools .colores{flex-wrap:wrap}
+body.movil .velo{padding:8px}
+body.movil .caja{max-height:92vh;max-height:92dvh;padding:14px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 #impresion{display:none}
 @media print{
@@ -138,6 +175,7 @@ body.visor #nombre{border:0;background:transparent;pointer-events:none}
     <button id="bBiblio">📂 Mis jugadas</button>
     <button id="bExportar" class="soloweb" hidden>⬇ Exportar</button>
     <button id="bSalir" class="soloweb" hidden title="Olvidar la contraseña en esta tablet">🔒 Salir</button>
+    <button id="bMenu" class="solomovil" aria-expanded="false" title="Más opciones">☰ Menú</button>
     <button id="bGuardar" class="prim">Guardar</button>
   </header>
 
@@ -365,15 +403,17 @@ const LOGO_VERDE=window.KOLBE_LOGO_VERDE||"";
 const LOGO_TAM={fs:4.6,f7:9,voley:3.6}, LOGO_OP=0.32;
 function dep(){return DEP[J.deporte||"fs"]}
 function vista(){J.vista=J.vista||{media:"",girar:false};return J.vista}
-function trf(p,extra){return `translate(${p[0]} ${p[1]})${vista().girar?" rotate(-90)":""}${extra||""}`}
+// En el móvil en vertical la pista se ve girada siempre (si no, no cabe). Solo cambia la vista: la jugada no se toca.
+function girada(){return document.body.classList.contains("movilV")||!!vista().girar}
+function trf(p,extra){return `translate(${p[0]} ${p[1]})${girada()?" rotate(-90)":""}${extra||""}`}
 function aplicaVista(){
   const d=dep(),v=d.vb,V=vista(),m=1.5*d.k;let x0=v[0],x1=v[0]+v[2];const y0=v[1],y1=v[1]+v[3];
   if(V.media==="der")x0=d.W/2-m; if(V.media==="izq")x1=d.W/2+m;
   const mundo=$("#mundo");
-  if(V.girar){mundo.setAttribute("transform","rotate(90)");svg.setAttribute("viewBox",[-y1,x0,y1-y0,x1-x0].join(" "))}
+  if(girada()){mundo.setAttribute("transform","rotate(90)");svg.setAttribute("viewBox",[-y1,x0,y1-y0,x1-x0].join(" "))}
   else{mundo.removeAttribute("transform");svg.setAttribute("viewBox",[x0,y0,x1-x0,y1-y0].join(" "))}
   $("#bMedia").textContent="Pista: "+({der:"media derecha",izq:"media izquierda"}[V.media]||"entera");
-  $("#bGirar").classList.toggle("on",!!V.girar);
+  $("#bGirar").classList.toggle("on",girada());$("#bGirar").disabled=document.body.classList.contains("movilV");
 }
 function pintaPista(){
   const d=dep(),v=d.vb;if(pistaPintada===(J.deporte||"fs"))return;pistaPintada=J.deporte||"fs";
@@ -1276,6 +1316,25 @@ if(VISOR){document.body.classList.add("visor");
     try{J=JSON.parse(await descomprime(h));J.ejemplo=true;actual=0;todo();$("#hint").textContent=(J.pasos.length>1?"Pulsa ▶ Reproducir o ◀ ▶ para verla paso a paso.":"")+(J.info&&J.info.objetivo?" Objetivo: "+J.info.objetivo:"")}
     catch(e){$("#hint").textContent="No he podido abrir esta jugada: el enlace está incompleto."}})();
 }
+
+// ---------- Móvil (23-11-2026) ----------
+// «movil» = el lado corto de la pantalla mide menos de 600 px (un teléfono, en vertical o en horizontal; una tablet no).
+// «movilV» = móvil en vertical: la pista se gira para que quepa. La barra de voz entra en el menú.
+function ponMovil(){const b=document.body,m=Math.min(innerWidth,innerHeight)<600,v=m&&innerHeight>innerWidth;
+  const antes=b.className;b.classList.toggle("movil",m);b.classList.toggle("movilV",v);
+  const voz=$("#barraVoz"),hd=document.querySelector("header");
+  if(m&&voz.parentNode!==hd)hd.append(voz);
+  if(!m&&voz.parentNode===hd){hd.after(voz);cierraMenu()}
+  if(b.className!==antes)todo()}
+function cierraMenu(){document.body.classList.remove("menu");$("#bMenu").setAttribute("aria-expanded","false");$("#bMenu").textContent="☰ Menú"}
+$("#bMenu").onclick=()=>{const ab=!document.body.classList.contains("menu");if(!ab)return cierraMenu();
+  document.body.classList.add("menu");$("#bMenu").setAttribute("aria-expanded","true");$("#bMenu").textContent="✕ Cerrar"};
+// Al elegir algo del menú, se cierra (salvo dictar, que necesita ver lo que oye).
+document.querySelector("header").addEventListener("click",e=>{const x=e.target.closest("button");
+  if(x&&document.body.classList.contains("menu")&&!["bMenu","bHablar"].includes(x.id))setTimeout(cierraMenu,0)});
+document.querySelector(".stage").addEventListener("pointerdown",()=>{if(document.body.classList.contains("menu"))cierraMenu()});
+addEventListener("resize",()=>{clearTimeout(ponMovil.t);ponMovil.t=setTimeout(ponMovil,150)});
+ponMovil();
 
 if(!VISOR)try{const b=JSON.parse(localStorage.getItem(KEY_B)||"null");
   if(b&&b.J&&!b.J.ejemplo&&b.J.pasos&&b.J.pasos.length){J=b.J;idActual=b.idActual||null;setTimeout(()=>toast("He recuperado lo último que tenías en pantalla"),300)}}catch(e){}
