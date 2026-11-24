@@ -86,6 +86,11 @@ svg#pista{width:100%;height:100%;touch-action:none;user-select:none;-webkit-user
 .trazo{cursor:pointer}
 /* Biblioteca */
 .velo{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:20}
+.v3d{position:fixed;inset:0;z-index:30;background:#16232c;display:flex;flex-direction:column;gap:8px;padding:10px;padding-top:max(10px,env(safe-area-inset-top));padding-bottom:max(10px,env(safe-area-inset-bottom))}
+.v3d .barra3{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.v3d .barra3 .sp{flex:1}
+.v3d .lienzo3{flex:1;min-height:0;position:relative;border-radius:12px;overflow:hidden;touch-action:none}
+.v3d canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.v3d .hint{color:#d9e4ea;min-height:1.2em}
 .caja{background:var(--panel);color:var(--ink);border-radius:14px;max-width:520px;width:100%;max-height:80vh;overflow:auto;padding:18px;display:flex;flex-direction:column;gap:12px}
 .caja h2{font-family:var(--display);margin:0;font-size:1.1rem}
 .fila{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:8px 10px}
@@ -276,6 +281,7 @@ body.visor #nombre{border:0;background:transparent;pointer-events:none}
     <span class="sp"></span>
     <span class="hint" id="hint">Mueve las fichas y dibuja las flechas de este paso.</span>
     <span id="crono" class="crono" hidden></span>
+    <button id="b3d" title="Ver la jugada en 3D (solo para mirar y reproducir)">🎥 Ver en 3D</button>
     <button id="bVel" title="Velocidad de la animación">🐢 Lento: no</button>
     <button id="bPresentar" title="Pista en grande para enseñarla al equipo">⛶ Presentar</button>
     <button id="bPlay" class="prim">▶ Reproducir</button>
@@ -349,6 +355,18 @@ body.visor #nombre{border:0;background:transparent;pointer-events:none}
       <button id="sCerrar">Cerrar</button>
     </div>
   </div>
+</div>
+<div id="velo3d" class="v3d" hidden role="dialog" aria-modal="true" aria-label="Jugada en 3D">
+  <div class="barra3">
+    <button id="v3Incl" class="on" title="Pista inclinada, ligera">📐 Inclinada</button>
+    <button id="v3Comp" title="Campo y jugadores en 3D, la cámara se gira con el dedo">🧊 3D completo</button>
+    <button id="v3Cam">🎥 Cámara: grada</button>
+    <button id="v3Play" class="prim">▶ Reproducir</button>
+    <span class="sp"></span>
+    <button id="v3Cerrar">✕ Cerrar</button>
+  </div>
+  <div id="v3Lienzo" class="lienzo3"><canvas id="v3c2" aria-label="Pista inclinada"></canvas><canvas id="v3c3" aria-label="Campo en 3D" hidden></canvas></div>
+  <span class="hint" id="v3Hint"></span>
 </div>
 <div id="veloExp" class="velo" hidden>
   <div class="caja" role="dialog" aria-modal="true" aria-labelledby="tExp">
@@ -1030,6 +1048,289 @@ $("#bPlay").onclick=()=>{
   }
   sig();
 };
+// ---------- Ver en 3D (David, 24-11-2026: «las dos») ----------
+// Visor aparte, SOLO para mirar y reproducir: no cambia la jugada. Para dibujar se sigue usando la vista normal.
+//  · Inclinada: la pista inclinada desde la grada o desde detrás de nuestra portería, fichas de pie. Sin librerías.
+//  · 3D completo: campo y muñecos en 3D con Three.js r128 (MIT). Se carga solo al pedirlo: primero three.min.js de la
+//    propia web (se guarda para usarla sin conexión) y, si no está (la pizarra abierta desde el Drive), de cdnjs con SRI.
+// Porterías y red de voleibol: medidas ORIENTATIVAS. Los muñecos van más grandes que de verdad para que se vean (más en F7).
+const V3={abierto:false,modo:"incl",cam:0,juega:null,t0:0,img:null,raf:0,sucio:true,e3:null,orb:null};
+const FIG={fs:{h:2.4,r:0.7},f7:{h:3.4,r:1},voley:{h:1.7,r:0.42}}; // más grandes que de verdad, para que se vean
+const GOL={fs:{y0:8.5,y1:11.5,h:2,f:1},f7:{y0:17,y1:23,h:2,f:1.5}};
+const RED={x:9,y0:-1,y1:10,h:2.24};
+const COLF={a:"#007937",b:"#D89B14",x:"#6b4fd8",lib:"#e0601a"};
+const JUG3=t=>!["balon","pica","aro","porteria","escalera","cono"].includes(t);
+const SRI3="sha512-dLxUelApnYxpLt6K2iomGngnHO83iUvZytA3YjDUCjT0HDOHKXnVYdf3hU4JjM8uEhxf9nD1/ey98U3t2vZ0qQ==";
+function depId(){return J.deporte||"fs"}
+// La pista tal cual se ve en la pizarra, pasada a imagen (el logo se pinta aparte para no «ensuciar» el lienzo en Safari).
+function texturaPista(){
+  const d=dep(),v=d.vb,esc=Math.min(2048/v[2],2048/v[3]),w=Math.round(v[2]*esc),h=Math.round(v[3]*esc),t=LOGO_TAM[depId()];
+  const s=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${v.join(" ")}" width="${w}" height="${h}"><rect x="${v[0]}" y="${v[1]}" width="${v[2]}" height="${v[3]}" fill="${d.fuera}"/><g fill="none" stroke="#ffffff" stroke-width="${d.sw}">${d.lineas}</g></svg>`;
+  const carga=src=>new Promise(ok=>{const im=new Image();im.onload=()=>ok(im);im.onerror=()=>ok(null);im.src=src});
+  return Promise.all([carga("data:image/svg+xml;charset=utf-8,"+encodeURIComponent(s)),carga(LOGO)]).then(([p,lg])=>{
+    const c=document.createElement("canvas");c.width=w;c.height=h;const x=c.getContext("2d");
+    x.fillStyle=d.fuera;x.fillRect(0,0,w,h);if(p)x.drawImage(p,0,0,w,h);
+    if(lg){x.globalAlpha=LOGO_OP;x.drawImage(lg,(d.W/2-t/2-v[0])*esc,(d.H/2-t/2-v[1])*esc,t*esc,t*esc);x.globalAlpha=1}
+    return c});
+}
+// Reproducción: lo mismo que «▶ Reproducir» (paso a paso y, en el último, cada línea por su orden), pero medido en el tiempo.
+function guion3d(){
+  const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches,P=lento?900:550,DUR=reduce?300:(lento?2600:1400),n=J.pasos.length,S=[];
+  for(let i=0;i<n-1;i++)S.push({k:"quieto",i,d:P},{k:"tramo",i,d:DUR});
+  const L=lineasPaso(J.pasos[n-1]);
+  if(L.length)S.push({k:"quieto",i:n-1,d:P},{k:"lineas",i:n-1,L,d:L.reduce((s,l)=>s+durLinea(l),0)});
+  S.push({k:"final",i:n-1,L,d:lento?2500:1600});return S;
+}
+function estado3d(){
+  if(!V3.juega){const P=J.pasos[actual];return {pos:P.pos,tr:P.trazos||[],op:1,i:actual}}
+  const S=V3.juega;let t=performance.now()-V3.t0;
+  for(let j=0;j<S.length;j++){const s=S[j];if(t>=s.d&&j<S.length-1){t-=s.d;continue}
+    const A=J.pasos[s.i],tr=enJuego(A.trazos);
+    if(s.k==="tramo")return {pos:avanzar(A,J.pasos[s.i+1],t/s.d),tr,op:1-0.75*ease(t/s.d),i:s.i};
+    if(s.k==="lineas")return {pos:enLineas(A,s.L,t).pos,tr,op:1,i:s.i};
+    if(s.k==="final"){const pos=s.L.length?enLineas(A,s.L,1e9).pos:A.pos;if(t>=s.d)setTimeout(para3d);return {pos,tr,op:1,i:s.i}}
+    return {pos:A.pos,tr,op:1,i:s.i};
+  }
+}
+function juega3d(){if(V3.juega){para3d();return}V3.juega=guion3d();V3.t0=performance.now();$("#v3Play").textContent="■ Parar"}
+function para3d(){V3.juega=null;$("#v3Play").textContent="▶ Reproducir";V3.sucio=true}
+
+// ===== Inclinada (lienzo 2D con perspectiva hecha a mano) =====
+function geoIncl(){
+  const cv=$("#v3c2"),cw=cv.clientWidth,ch=cv.clientHeight,dpr=Math.min(2,devicePixelRatio||1),d=dep(),v=d.vb;
+  cv.width=Math.round(cw*dpr);cv.height=Math.round(ch*dpr);
+  const a=56*Math.PI/180,ext=Math.max(v[2],v[3]);
+  const g={cx:d.W/2,cy:d.H/2,sa:Math.sin(a),ca:Math.cos(a),D:ext*1.35,F:1,ox:0,oy:0,dpr,cw,ch};V3.g=g;
+  let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;
+  for(const [x,y] of [[v[0],v[1]],[v[0]+v[2],v[1]],[v[0],v[1]+v[3]],[v[0]+v[2],v[1]+v[3]]])for(const z of [0,FIG[depId()].h+0.6]){
+    const p=proy(x,y,z);x0=Math.min(x0,p[0]);x1=Math.max(x1,p[0]);y0=Math.min(y0,p[1]);y1=Math.max(y1,p[1])}
+  g.F=Math.min(cw*0.96/(x1-x0),ch*0.94/(y1-y0));g.ox=cw/2-g.F*(x0+x1)/2;g.oy=ch/2-g.F*(y0+y1)/2;
+}
+function proy(x,y,z){ // → [x pantalla, y pantalla, escala, profundidad]
+  const g=V3.g,X=x-g.cx,Y=y-g.cy,u=V3.cam?Y:X,fw=V3.cam?X:-Y;
+  const d=fw*g.sa-z*g.ca,v=fw*g.ca+z*g.sa,s=g.F/(g.D+d);return [g.ox+u*s,g.oy-v*s,s,d];
+}
+function poli2(c,pts,fill,stroke,lw){c.beginPath();pts.forEach((q,i)=>{const r=proy(q[0],q[1],q[2]||0);i?c.lineTo(r[0],r[1]):c.moveTo(r[0],r[1])});
+  if(fill){c.fillStyle=fill;c.fill()}if(stroke){c.strokeStyle=stroke;c.lineWidth=lw||1.5;c.stroke()}}
+const circ=(x,y,r,z,n=20)=>Array.from({length:n+1},(_,i)=>[x+r*Math.cos(i/n*6.2832),y+r*Math.sin(i/n*6.2832),z||0]);
+function sueloIncl(c){
+  const g=V3.g,v=dep().vb,im=V3.img,N=96,iw=im.width,ih=im.height,dp=g.dpr;
+  // Por tiras: cada tira se estira a su sitio y se recorta a su trapecio real (si no, los bordes salen en escalera).
+  for(let j=0;j<N;j++){let p0,p1,p2,q,sx,sy,sw,sh;
+    if(!V3.cam){const ya=v[1]+v[3]*j/N,yb=v[1]+v[3]*(j+1)/N,yc=v[1]+v[3]*Math.min(N,j+1.6)/N;p0=proy(v[0],ya,0);p1=proy(v[0]+v[2],ya,0);p2=proy(v[0],yb,0);
+      q=[p0,p1,proy(v[0]+v[2],yc,0),proy(v[0],yc,0)];sx=0;sy=ih*j/N;sw=iw;sh=ih/N}
+    else{const xa=v[0]+v[2]*j/N,xb=v[0]+v[2]*(j+1)/N,xc=v[0]+v[2]*Math.min(N,j+1.6)/N;p0=proy(xa,v[1],0);p1=proy(xb,v[1],0);p2=proy(xa,v[1]+v[3],0);
+      q=[p0,proy(xc,v[1],0),proy(xc,v[1]+v[3],0),p2];sx=iw*j/N;sy=0;sw=iw/N;sh=ih}
+    c.save();c.beginPath();q.forEach((r,i)=>i?c.lineTo(r[0],r[1]):c.moveTo(r[0],r[1]));c.closePath();c.clip();
+    c.setTransform(dp*(p1[0]-p0[0])/sw,dp*(p1[1]-p0[1])/sw,dp*(p2[0]-p0[0])/sh,dp*(p2[1]-p0[1])/sh,dp*p0[0],dp*p0[1]);
+    if(!V3.cam)c.drawImage(im,sx,sy,sw,Math.min(sh*1.6,ih-sy),0,0,sw,Math.min(sh*1.6,ih-sy));
+    else c.drawImage(im,sx,sy,Math.min(sw*1.6,iw-sx),sh,0,0,Math.min(sw*1.6,iw-sx),sh);
+    c.restore();
+  }
+  c.setTransform(dp,0,0,dp,0,0);
+}
+function flecha2(c,t,op){
+  const k=dep().k,col=t.k==="pase"?"#ffd36a":t.k==="tiro"?"#ff5a4f":(t.c||"#fff");c.globalAlpha=op;
+  if(t.k==="zona"){const x0=Math.min(t.a[0],t.b[0]),x1=Math.max(t.a[0],t.b[0]),y0=Math.min(t.a[1],t.b[1]),y1=Math.max(t.a[1],t.b[1]);
+    c.globalAlpha=op*0.25;poli2(c,[[x0,y0],[x1,y0],[x1,y1],[x0,y1]],col);c.globalAlpha=op;poli2(c,[[x0,y0],[x1,y0],[x1,y1],[x0,y1],[x0,y0]],null,col,2);c.globalAlpha=1;return}
+  const pts=t.pts&&t.pts.length>1?t.pts:[t.a,t.b],s=proy(pts[0][0],pts[0][1],0)[2];
+  c.setLineDash(t.k==="pase"?[0.55*k*s,0.4*k*s]:t.k==="conduccion"?[0.12*k*s,0.3*k*s]:[]);c.lineCap="round";
+  poli2(c,pts.map(q=>[q[0],q[1],0.03]),null,col,Math.max(2,(t.k==="tiro"?0.26:0.18)*k*s));c.setLineDash([]);
+  const B=pts[pts.length-1],A=pts[pts.length-2],L=Math.hypot(B[0]-A[0],B[1]-A[1])||1,ux=(B[0]-A[0])/L,uy=(B[1]-A[1])/L,h=0.75*k,w=0.42*k;
+  poli2(c,[[B[0]+ux*h*0.3,B[1]+uy*h*0.3,0.03],[B[0]-ux*h-uy*w,B[1]-uy*h+ux*w,0.03],[B[0]-ux*h+uy*w,B[1]-uy*h-ux*w,0.03]],col);c.globalAlpha=1;
+}
+function porteria2(c,g,lado){ // lado 0 = x=0, 1 = x=W
+  const d=dep(),x=lado?d.W:0,f=lado?g.f:-g.f,bl="rgba(255,255,255,0.18)",L="#fff",lw=Math.max(2,0.12*proy(x,g.y0,0)[2]);
+  poli2(c,[[x+f,g.y0,0],[x+f,g.y0,g.h*0.6],[x+f,g.y1,g.h*0.6],[x+f,g.y1,0]],bl,"rgba(255,255,255,0.5)",1);
+  poli2(c,[[x,g.y0,0],[x,g.y0,g.h],[x+f,g.y0,g.h*0.6],[x+f,g.y0,0]],bl,"rgba(255,255,255,0.5)",1);
+  poli2(c,[[x,g.y1,0],[x,g.y1,g.h],[x+f,g.y1,g.h*0.6],[x+f,g.y1,0]],bl,"rgba(255,255,255,0.5)",1);
+  poli2(c,[[x,g.y0,g.h],[x+f,g.y0,g.h*0.6],[x+f,g.y1,g.h*0.6],[x,g.y1,g.h]],bl);
+  poli2(c,[[x,g.y0,0],[x,g.y0,g.h],[x,g.y1,g.h],[x,g.y1,0]],null,L,lw);
+}
+function red2(c){const r=RED;
+  poli2(c,[[r.x,r.y0,r.h-1],[r.x,r.y0,r.h],[r.x,r.y1,r.h],[r.x,r.y1,r.h-1]],"rgba(20,30,40,0.35)","rgba(255,255,255,0.7)",1);
+  poli2(c,[[r.x,r.y0,r.h],[r.x,r.y1,r.h]],null,"#fff",3);poli2(c,[[r.x,r.y0,0],[r.x,r.y0,r.h+0.1]],null,"#ddd",3);poli2(c,[[r.x,r.y1,0],[r.x,r.y1,r.h+0.1]],null,"#ddd",3)}
+function ficha2(c,f,p){
+  const k=dep().k,F=FIG[depId()],x=p[0],y=p[1];
+  if(f.t==="balon"){poli2(c,circ(x+0.15*k,y+0.1*k,0.32*k,0,12),"rgba(0,0,0,0.3)");const r=proy(x,y,0.32*k),R=Math.max(4,0.34*k*r[2]);
+    c.beginPath();c.arc(r[0],r[1],R,0,7);c.fillStyle="#fff";c.fill();c.strokeStyle="#1b1b1b";c.lineWidth=Math.max(1,R*0.2);c.stroke();
+    c.beginPath();c.arc(r[0],r[1],R*0.33,0,7);c.fillStyle="#1b1b1b";c.fill();return}
+  if(f.t==="pica"){poli2(c,circ(x,y,0.3*k,0.02),"#ffd400","#6b5600",1);return}
+  if(f.t==="aro"){poli2(c,circ(x,y,0.6*k,0.02,28),null,"#ff4fa3",Math.max(2,0.14*k*proy(x,y,0)[2]));return}
+  if(f.t==="escalera"){poli2(c,[[x-1.4*k,y-0.4*k,.02],[x+1.4*k,y-0.4*k,.02],[x+1.4*k,y+0.4*k,.02],[x-1.4*k,y+0.4*k,.02],[x-1.4*k,y-0.4*k,.02]],null,"#ffd400",2);
+    for(let i=1;i<4;i++)poli2(c,[[x-1.4*k+0.7*k*i,y-0.4*k,.02],[x-1.4*k+0.7*k*i,y+0.4*k,.02]],null,"#ffd400",2);return}
+  if(f.t==="cono"){const h=0.75*k,b=proy(x,y,0),t=proy(x,y,h),r=0.38*k*b[2];poli2(c,circ(x+0.12*k,y+0.1*k,0.4*k,0,14),"rgba(0,0,0,0.25)");
+    c.beginPath();c.moveTo(b[0]-r,b[1]);c.lineTo(t[0],t[1]);c.lineTo(b[0]+r,b[1]);c.closePath();c.fillStyle="#ff7a1a";c.fill();c.strokeStyle="#7a3500";c.lineWidth=1;c.stroke();return}
+  if(f.t==="porteria"){const h=1*k,L="#fff",lw=Math.max(2,0.1*k*proy(x,y,0)[2]);
+    poli2(c,[[x,y-0.9*k,0],[x,y-0.9*k,h],[x,y+0.9*k,h],[x,y+0.9*k,0]],"rgba(255,255,255,0.15)",L,lw);return}
+  const col=COLF[f.t]||"#007937",tc=f.t==="b"?"#1d1606":"#fff",r=F.r,h=F.h;
+  poli2(c,circ(x+0.3*k,y+0.22*k,r*1.1,0,18),"rgba(0,0,0,0.28)");
+  const b=proy(x,y,0),m=proy(x,y,h*0.5),t=proy(x,y,h*0.86);
+  const W0=r*b[2],W1=r*t[2];
+  c.fillStyle="#22262a";c.beginPath();c.moveTo(b[0]-W0*0.8,b[1]);c.lineTo(m[0]-W0*0.8,m[1]);c.lineTo(m[0]+W0*0.8,m[1]);c.lineTo(b[0]+W0*0.8,b[1]);c.closePath();c.fill();
+  c.fillStyle=col;c.strokeStyle="rgba(255,255,255,0.85)";c.lineWidth=Math.max(1,0.05*b[2]);
+  c.beginPath();c.moveTo(m[0]-W0,m[1]);c.lineTo(t[0]-W1,t[1]);c.lineTo(t[0]+W1,t[1]);c.lineTo(m[0]+W0,m[1]);c.closePath();c.fill();c.stroke();
+  const hd=proy(x,y,h*0.97);c.beginPath();c.arc(hd[0],hd[1],Math.max(3,0.13*h*hd[2]),0,7);c.fillStyle="#f1c9a5";c.fill();c.strokeStyle="rgba(0,0,0,0.4)";c.lineWidth=1;c.stroke();
+  if(f.l){const q=proy(x,y,h*0.67),fs=Math.max(11,0.55*k*q[2]);c.font=`700 ${fs}px Oxygen, system-ui, sans-serif`;c.textAlign="center";c.textBaseline="middle";
+    c.lineWidth=Math.max(2,fs*0.18);c.strokeStyle=f.t==="b"?"rgba(255,255,255,0.6)":"rgba(0,0,0,0.55)";c.strokeText(f.l,q[0],q[1]);c.fillStyle=tc;c.fillText(f.l,q[0],q[1])}
+}
+function pintaIncl(e){
+  const cv=$("#v3c2"),c=cv.getContext("2d"),g=V3.g;if(!g||!V3.img)return;
+  c.setTransform(g.dpr,0,0,g.dpr,0,0);c.fillStyle="#16232c";c.fillRect(0,0,g.cw,g.ch);
+  sueloIncl(c);
+  for(const t of e.tr)if(t.a&&t.b&&t.k!=="texto")flecha2(c,t,e.op);
+  const it=[],d=dep(),gl=GOL[depId()];
+  if(gl){it.push({z:proy(0,d.H/2,0)[3],f:()=>porteria2(c,gl,0)},{z:proy(d.W,d.H/2,0)[3],f:()=>porteria2(c,gl,1)})}
+  if(depId()==="voley")it.push({z:proy(RED.x,d.H/2,0)[3]+(V3.cam?0:-1e3),f:()=>red2(c)});
+  for(const f of J.fichas){const p=e.pos[f.id];if(!p)continue;it.push({z:proy(p[0],p[1],0)[3]-(f.t==="balon"?0.01:0),f:()=>ficha2(c,f,p)})}
+  it.sort((a,b)=>b.z-a.z).forEach(o=>o.f());
+}
+
+// ===== 3D completo (Three.js) =====
+function cargaThree(){
+  if(window.THREE)return Promise.resolve();
+  const pon=(src,sri)=>new Promise((ok,ko)=>{const s=document.createElement("script");s.src=src;if(sri){s.integrity=sri;s.crossOrigin="anonymous"}s.onload=()=>window.THREE?ok():ko();s.onerror=ko;document.head.append(s)});
+  return pon("three.min.js").catch(()=>pon("../three.min.js")).catch(()=>pon("https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js",SRI3));
+}
+function libera3(o){o.traverse(n=>{if(n.geometry)n.geometry.dispose();if(n.material){(Array.isArray(n.material)?n.material:[n.material]).forEach(m=>{if(m.map)m.map.dispose();m.dispose()})}})}
+function cinta(T,pts,w,dash,gap){ // tira plana sobre el suelo (las líneas de WebGL solo miden 1 píxel)
+  const segs=[];
+  if(dash){let acc=0,on=true,cur=[pts[0]];for(let i=1;i<pts.length;i++){let a=pts[i-1],b=pts[i],L=Math.hypot(b[0]-a[0],b[1]-a[1]),u=0;
+      while(L-u>1e-6){const lim=(on?dash:gap)-acc,paso=Math.min(lim,L-u);u+=paso;acc+=paso;const q=[a[0]+(b[0]-a[0])*u/L,a[1]+(b[1]-a[1])*u/L];
+        if(on)cur.push(q);if(acc>=(on?dash:gap)-1e-6){if(on)segs.push(cur);on=!on;acc=0;cur=[q]}}}
+    if(on&&cur.length>1)segs.push(cur)}
+  else segs.push(pts);
+  const P=[];
+  for(const s of segs)for(let i=1;i<s.length;i++){const a=s[i-1],b=s[i],L=Math.hypot(b[0]-a[0],b[1]-a[1])||1,nx=-(b[1]-a[1])/L*w/2,ny=(b[0]-a[0])/L*w/2;
+    P.push(a[0]+nx,0,a[1]+ny, b[0]+nx,0,b[1]+ny, b[0]-nx,0,b[1]-ny, a[0]+nx,0,a[1]+ny, b[0]-nx,0,b[1]-ny, a[0]-nx,0,a[1]-ny)}
+  const g=new T.BufferGeometry();g.setAttribute("position",new T.Float32BufferAttribute(P,3));return g;
+}
+function trazos3(T,tr){
+  const G=new T.Group(),k=dep().k;
+  for(const t of tr){if(!t.a||!t.b||t.k==="texto")continue;
+    const col=t.k==="pase"?"#ffd36a":t.k==="tiro"?"#ff5a4f":(t.c||"#ffffff"),M=()=>new T.MeshBasicMaterial({color:col,transparent:true,depthWrite:false,side:T.DoubleSide});
+    if(t.k==="zona"){const x0=Math.min(t.a[0],t.b[0]),y0=Math.min(t.a[1],t.b[1]),w=Math.abs(t.b[0]-t.a[0]),h=Math.abs(t.b[1]-t.a[1]),m=M();m.opacity=0.22;
+      const z=new T.Mesh(new T.PlaneGeometry(w,h),m);z.rotation.x=-Math.PI/2;z.position.set(x0+w/2,0.025,y0+h/2);z.userData.op=0.22;G.add(z);continue}
+    const pts=t.pts&&t.pts.length>1?t.pts:[t.a,t.b],w=(t.k==="tiro"?0.26:0.18)*k;
+    const m=new T.Mesh(cinta(T,pts,w,t.k==="pase"?0.55*k:t.k==="conduccion"?0.15*k:0,t.k==="pase"?0.4*k:0.3*k),M());m.position.y=0.03;m.userData.op=1;G.add(m);
+    const B=pts[pts.length-1],A=pts[pts.length-2],L=Math.hypot(B[0]-A[0],B[1]-A[1])||1,ux=(B[0]-A[0])/L,uy=(B[1]-A[1])/L,h=0.75*k,wd=0.42*k;
+    const g=new T.BufferGeometry();g.setAttribute("position",new T.Float32BufferAttribute([B[0]+ux*h*0.3,0,B[1]+uy*h*0.3, B[0]-ux*h-uy*wd,0,B[1]-uy*h+ux*wd, B[0]-ux*h+uy*wd,0,B[1]-uy*h-ux*wd],3));
+    const pu=new T.Mesh(g,M());pu.position.y=0.03;pu.userData.op=1;G.add(pu)}
+  return G;
+}
+function etiqueta3(T,txt,col,borde){const c=document.createElement("canvas");c.width=c.height=128;const x=c.getContext("2d");
+  x.font="700 80px Oxygen, system-ui, sans-serif";x.textAlign="center";x.textBaseline="middle";x.lineWidth=14;x.strokeStyle=borde;x.strokeText(txt,64,70);x.fillStyle=col;x.fillText(txt,64,70);
+  const tx=new T.CanvasTexture(c);return new T.Sprite(new T.SpriteMaterial({map:tx,depthTest:false}))}
+function monta3(){
+  const T=THREE,d=dep(),v=d.vb,k=d.k,F=FIG[depId()],cv=$("#v3c3");
+  if(V3.e3){libera3(V3.e3.S)}
+  let R=V3.e3&&V3.e3.R;
+  if(!R){R=new T.WebGLRenderer({canvas:cv,antialias:true});R.shadowMap.enabled=true;R.shadowMap.type=T.PCFSoftShadowMap;R.outputEncoding=T.sRGBEncoding}
+  R.setPixelRatio(Math.min(2,devicePixelRatio||1));
+  const S=new T.Scene();S.background=new T.Color("#16232c");
+  const C=new T.PerspectiveCamera(40,1,0.1,600);
+  S.add(new T.HemisphereLight(0xffffff,0x3a4a3a,0.85));
+  const sol=new T.DirectionalLight(0xffffff,0.75);sol.position.set(d.W*0.3,Math.max(d.W,d.H)*0.9,-d.H*0.4);sol.target.position.set(d.W/2,0,d.H/2);
+  sol.castShadow=true;sol.shadow.mapSize.set(2048,2048);const sc=sol.shadow.camera,ex=Math.max(v[2],v[3])*0.75;Object.assign(sc,{left:-ex,right:ex,top:ex,bottom:-ex,near:1,far:Math.max(d.W,d.H)*4});
+  S.add(sol,sol.target);
+  const tx=new T.CanvasTexture(V3.img);tx.encoding=T.sRGBEncoding;tx.anisotropy=R.capabilities.getMaxAnisotropy();
+  const suelo=new T.Mesh(new T.PlaneGeometry(v[2],v[3]),new T.MeshBasicMaterial({map:tx}));suelo.rotation.x=-Math.PI/2;suelo.position.set(v[0]+v[2]/2,0,v[1]+v[3]/2);S.add(suelo);
+  const somb=new T.Mesh(new T.PlaneGeometry(v[2],v[3]),new T.ShadowMaterial({opacity:0.3}));somb.rotation.x=-Math.PI/2;somb.position.set(v[0]+v[2]/2,0.01,v[1]+v[3]/2);somb.receiveShadow=true;S.add(somb);
+  const blanco=new T.MeshLambertMaterial({color:0xffffff}),malla=new T.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.16,side:T.DoubleSide,depthWrite:false});
+  const palo=(x,y,z,h,r,rot)=>{const m=new T.Mesh(new T.CylinderGeometry(r,r,h,10),blanco);m.position.set(x,y,z);if(rot)m.rotation.x=Math.PI/2;m.castShadow=true;S.add(m)};
+  const gl=GOL[depId()];
+  if(gl)for(const lado of [0,1]){const x=lado?d.W:0,f=lado?gl.f:-gl.f,an=gl.y1-gl.y0,ym=(gl.y0+gl.y1)/2;
+    palo(x,gl.h/2,gl.y0,gl.h,0.06*k);palo(x,gl.h/2,gl.y1,gl.h,0.06*k);palo(x,gl.h,ym,an+0.12*k,0.06*k,true);
+    const fo=new T.Mesh(new T.PlaneGeometry(an,gl.h*0.6),malla);fo.rotation.y=Math.PI/2;fo.position.set(x+f,gl.h*0.3,ym);S.add(fo);
+    const lat=g=>{const s=new T.Shape();s.moveTo(0,0);s.lineTo(0,gl.h);s.lineTo(f,gl.h*0.6);s.lineTo(f,0);s.lineTo(0,0);const m=new T.Mesh(new T.ShapeGeometry(s),malla);m.position.set(x,0,g);S.add(m)};lat(gl.y0);lat(gl.y1);
+    const tg=new T.BufferGeometry();tg.setAttribute("position",new T.Float32BufferAttribute([x,gl.h,gl.y0, x+f,gl.h*0.6,gl.y0, x+f,gl.h*0.6,gl.y1, x,gl.h,gl.y0, x+f,gl.h*0.6,gl.y1, x,gl.h,gl.y1],3));S.add(new T.Mesh(tg,malla))}
+  if(depId()==="voley"){const r=RED,an=r.y1-r.y0;palo(r.x,(r.h+0.1)/2,r.y0,r.h+0.1,0.05);palo(r.x,(r.h+0.1)/2,r.y1,r.h+0.1,0.05);
+    const n=new T.Mesh(new T.PlaneGeometry(an,1),new T.MeshBasicMaterial({color:0x14202a,transparent:true,opacity:0.45,side:T.DoubleSide,depthWrite:false}));n.rotation.y=Math.PI/2;n.position.set(r.x,r.h-0.5,(r.y0+r.y1)/2);S.add(n);
+    const cin=new T.Mesh(new T.BoxGeometry(0.03,0.07,an),blanco);cin.position.set(r.x,r.h-0.035,(r.y0+r.y1)/2);S.add(cin)}
+  const figs={};
+  for(const f of J.fichas){const G=new T.Group();let alto=0.6*k;
+    if(f.t==="balon"){const b=new T.Mesh(new T.SphereGeometry(0.3*k,20,14),new T.MeshLambertMaterial({color:0xffffff}));b.position.y=0.3*k;b.castShadow=true;G.add(b);
+      const pin=new T.Mesh(new T.SphereGeometry(0.1*k,10,8),new T.MeshLambertMaterial({color:0x1b1b1b}));pin.position.set(0,0.3*k,0.22*k);G.add(pin)}
+    else if(f.t==="cono"){const m=new T.Mesh(new T.ConeGeometry(0.38*k,0.75*k,18),new T.MeshLambertMaterial({color:0xff7a1a}));m.position.y=0.375*k;m.castShadow=true;G.add(m)}
+    else if(f.t==="pica"){const m=new T.Mesh(new T.CylinderGeometry(0.3*k,0.3*k,0.05,18),new T.MeshLambertMaterial({color:0xffd400}));m.position.y=0.03;G.add(m)}
+    else if(f.t==="aro"){const m=new T.Mesh(new T.TorusGeometry(0.6*k,0.06*k,8,28),new T.MeshLambertMaterial({color:0xff4fa3}));m.rotation.x=Math.PI/2;m.position.y=0.06*k;G.add(m)}
+    else if(f.t==="escalera"){const mt=new T.MeshLambertMaterial({color:0xffd400});
+      for(const z of [-0.4*k,0.4*k]){const m=new T.Mesh(new T.BoxGeometry(2.8*k,0.04,0.05*k),mt);m.position.set(0,0.02,z);G.add(m)}
+      for(let i=0;i<5;i++){const m=new T.Mesh(new T.BoxGeometry(0.05*k,0.04,0.8*k),mt);m.position.set(-1.4*k+0.7*k*i,0.02,0);G.add(m)}}
+    else if(f.t==="porteria"){const h=1*k;for(const z of [-0.9*k,0.9*k]){const m=new T.Mesh(new T.CylinderGeometry(0.05*k,0.05*k,h,8),blanco);m.position.set(0,h/2,z);m.castShadow=true;G.add(m)}
+      const tr=new T.Mesh(new T.CylinderGeometry(0.05*k,0.05*k,1.8*k,8),blanco);tr.rotation.x=Math.PI/2;tr.position.y=h;tr.castShadow=true;G.add(tr)}
+    else{const col=COLF[f.t]||"#007937",r=F.r,h=F.h;
+      const pi=new T.Mesh(new T.CylinderGeometry(r*0.78,r*0.82,h*0.47,16),new T.MeshLambertMaterial({color:0x22262a}));pi.position.y=h*0.235;
+      const cu=new T.Mesh(new T.CylinderGeometry(r,r*0.88,h*0.4,18),new T.MeshLambertMaterial({color:col}));cu.position.y=h*0.47+h*0.2;
+      const ca=new T.Mesh(new T.SphereGeometry(h*0.11,16,12),new T.MeshLambertMaterial({color:0xf1c9a5}));ca.position.y=h*0.98;
+      [pi,cu,ca].forEach(o=>{o.castShadow=true;G.add(o)});alto=h*1.1;
+      if(f.l){const e=etiqueta3(T,f.l,f.t==="b"?"#1d1606":"#ffffff",f.t==="b"?"rgba(255,255,255,0.85)":"rgba(0,0,0,0.6)");const sz=Math.max(0.9,0.85*k);e.scale.set(sz,sz,1);e.position.y=alto+sz*0.45;G.add(e)}}
+    G.visible=false;S.add(G);figs[f.id]=G}
+  V3.e3={R,S,C,figs,tr:null,trKey:null,dep:depId()};
+  const ext=Math.max(d.W,d.H);V3.orb=V3.orb&&V3.orb.dep===depId()?V3.orb:{dep:depId(),az:0,el:0.62,dist:ext*1.15,tAz:0,tEl:0.62,tD:ext*1.15};
+  tam3();
+}
+function tam3(){const e=V3.e3;if(!e)return;const cv=$("#v3c3"),w=cv.clientWidth,h=cv.clientHeight;if(!w||!h)return;e.R.setSize(w,h,false);e.C.aspect=w/h;e.C.updateProjectionMatrix();V3.sucio=true}
+const CAMS3=[{n:"grada",az:0,el:0.62,f:1.15},{n:"detrás de nuestra portería",az:-Math.PI/2,el:0.38,f:0.8},{n:"arriba",az:0,el:1.48,f:1.25}];
+function pinta3(e){
+  const E=V3.e3;if(!E)return;const T=THREE,o=V3.orb,d=dep();
+  const lerp=(a,b)=>Math.abs(b-a)<1e-3?b:a+(b-a)*0.12;
+  const mov=Math.abs(o.tAz-o.az)+Math.abs(o.tEl-o.el)+Math.abs(o.tD-o.dist)>1e-3;o.az=lerp(o.az,o.tAz);o.el=lerp(o.el,o.tEl);o.dist=lerp(o.dist,o.tD);if(mov)V3.sucio=true;
+  const cx=d.W/2,cz=d.H/2;E.C.position.set(cx+o.dist*Math.cos(o.el)*Math.sin(o.az),o.dist*Math.sin(o.el),cz+o.dist*Math.cos(o.el)*Math.cos(o.az));E.C.lookAt(cx,0,cz);
+  for(const id in E.figs){const p=e.pos[id],G=E.figs[id];G.visible=!!p;if(p)G.position.set(p[0],0,p[1])}
+  const key=e.i+"|"+(V3.juega?1:0);
+  if(key!==E.trKey){if(E.tr){E.S.remove(E.tr);libera3(E.tr)}E.tr=trazos3(T,e.tr);E.S.add(E.tr);E.trKey=key}
+  E.tr.children.forEach(m=>m.material.opacity=(m.userData.op||1)*e.op);
+  E.R.render(E.S,E.C);
+}
+
+// ===== Visor =====
+function bucle3d(){
+  if(!V3.abierto)return;
+  if(V3.juega||V3.sucio){V3.sucio=false;const e=estado3d();if(V3.modo==="incl")pintaIncl(e);else pinta3(e);
+    const P=J.pasos[e.i];$("#v3Hint").textContent=V3.juega?(P.nota?`Paso ${e.i+1}: ${P.nota}`:`Paso ${e.i+1} de ${J.pasos.length}`)
+      :V3.modo==="incl"?"Solo para mirar. Para dibujar o mover fichas, cierra esta vista.":"Arrastra para girar la cámara; pellizca o usa la rueda para acercarte."}
+  V3.raf=requestAnimationFrame(bucle3d);
+}
+function botones3d(){
+  $("#v3Incl").classList.toggle("on",V3.modo==="incl");$("#v3Comp").classList.toggle("on",V3.modo==="comp");
+  $("#v3c2").hidden=V3.modo!=="incl";$("#v3c3").hidden=V3.modo!=="comp";
+  $("#v3Cam").textContent="🎥 Cámara: "+(V3.modo==="incl"?(V3.cam?"detrás de nuestra portería":"grada"):CAMS3[V3.cam3||0].n);
+}
+function modo3d(m){
+  V3.modo=m;botones3d();V3.sucio=true;
+  if(m==="incl"){geoIncl();return}
+  $("#v3Hint").textContent="Cargando el 3D…";
+  cargaThree().then(()=>{if(!V3.abierto||V3.modo!=="comp")return;
+    try{monta3()}catch(err){toast("Este aparato no puede con el 3D completo. Usa la vista inclinada");modo3d("incl");return}
+    V3.sucio=true}).catch(()=>{toast("No se ha podido cargar el 3D. Hace falta conexión la primera vez");modo3d("incl")});
+}
+function abre3d(){
+  if(jugando)return;
+  V3.abierto=true;$("#velo3d").hidden=false;V3.juega=null;$("#v3Play").textContent="▶ Reproducir";$("#v3Hint").textContent="Preparando la pista…";
+  const lz=$("#v3Lienzo");V3.cam=lz.clientHeight>lz.clientWidth*1.1?1:0;
+  texturaPista().then(img=>{if(!V3.abierto)return;V3.img=img;V3.e3dep=null;modo3d(V3.modo);cancelAnimationFrame(V3.raf);bucle3d()});
+}
+function cierra3d(){V3.abierto=false;V3.juega=null;cancelAnimationFrame(V3.raf);$("#velo3d").hidden=true;
+  if(V3.e3){libera3(V3.e3.S);V3.e3.S=new THREE.Scene()}}
+$("#b3d").onclick=abre3d;$("#v3Cerrar").onclick=cierra3d;$("#v3Play").onclick=juega3d;
+$("#v3Incl").onclick=()=>modo3d("incl");$("#v3Comp").onclick=()=>modo3d("comp");
+$("#v3Cam").onclick=()=>{
+  if(V3.modo==="incl"){V3.cam=V3.cam?0:1;geoIncl()}
+  else{V3.cam3=((V3.cam3||0)+1)%CAMS3.length;const c=CAMS3[V3.cam3],o=V3.orb,ext=Math.max(dep().W,dep().H);if(o){o.tAz=c.az;o.tEl=c.el;o.tD=ext*c.f}}
+  botones3d();V3.sucio=true};
+addEventListener("resize",()=>{if(!V3.abierto)return;if(V3.modo==="incl")geoIncl();else tam3();V3.sucio=true});
+addEventListener("keydown",e=>{if(V3.abierto&&e.key==="Escape")cierra3d()});
+(()=>{const lz=$("#v3Lienzo"),dedos=new Map();let pin=0;
+  lz.addEventListener("pointerdown",e=>{if(V3.modo!=="comp")return;dedos.set(e.pointerId,[e.clientX,e.clientY]);lz.setPointerCapture(e.pointerId);
+    if(dedos.size===2){const [a,b]=[...dedos.values()];pin=Math.hypot(a[0]-b[0],a[1]-b[1])}});
+  lz.addEventListener("pointermove",e=>{if(V3.modo!=="comp"||!dedos.has(e.pointerId)||!V3.orb)return;const o=V3.orb,ant=dedos.get(e.pointerId);dedos.set(e.pointerId,[e.clientX,e.clientY]);
+    if(dedos.size===1){o.tAz-=(e.clientX-ant[0])*0.008;o.tEl=Math.max(0.1,Math.min(1.5,o.tEl+(e.clientY-ant[1])*0.006))}
+    else if(dedos.size===2){const [a,b]=[...dedos.values()],dd=Math.hypot(a[0]-b[0],a[1]-b[1]);if(pin){const ext=Math.max(dep().W,dep().H);o.tD=Math.max(ext*0.3,Math.min(ext*2,o.tD*pin/dd))}pin=dd}
+    V3.sucio=true});
+  const suelta=e=>{dedos.delete(e.pointerId);pin=0};lz.addEventListener("pointerup",suelta);lz.addEventListener("pointercancel",suelta);
+  lz.addEventListener("wheel",e=>{if(V3.modo!=="comp"||!V3.orb)return;e.preventDefault();const ext=Math.max(dep().W,dep().H);V3.orb.tD=Math.max(ext*0.3,Math.min(ext*2,V3.orb.tD*(1+e.deltaY*0.001)));V3.sucio=true},{passive:false});
+})();
 // Presentar: solo se sale con «✕ Salir». Si la tablet quita la pantalla completa (deslizar hacia abajo, gesto del
 // sistema), la pizarra sigue en modo presentar y vuelve a pantalla completa al siguiente toque en la pista (14-11-2026).
 const fsEl=()=>document.fullscreenElement||document.webkitFullscreenElement;
